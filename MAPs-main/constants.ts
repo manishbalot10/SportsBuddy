@@ -1,0 +1,88 @@
+import { Player, SportType, SkillLevel, UserLocation } from './types';
+import { 
+  Trophy, Activity, Target, Zap, Dumbbell, Flag, 
+  Swords, Crosshair, Waves, Bike, Gamepad2, 
+  CircleDot, PersonStanding
+} from 'lucide-react';
+
+export const CITIES = [
+  { name: 'Mumbai', lat: 19.07, lng: 72.87 },
+  { name: 'Delhi', lat: 28.65, lng: 77.15 },
+  { name: 'Bangalore', lat: 12.97, lng: 77.60 },
+  { name: 'Hyderabad', lat: 17.42, lng: 78.45 },
+  { name: 'Chennai', lat: 13.08, lng: 80.22 },
+  { name: 'Kolkata', lat: 22.55, lng: 88.37 },
+  { name: 'Pune', lat: 18.55, lng: 73.85 },
+  { name: 'Ahmedabad', lat: 23.05, lng: 72.60 },
+  { name: 'Jaipur', lat: 26.90, lng: 75.80 },
+  { name: 'Lucknow', lat: 26.86, lng: 80.95 },
+  { name: 'Kanpur', lat: 26.47, lng: 80.37 },
+  { name: 'Nagpur', lat: 21.15, lng: 79.07 },
+  { name: 'Indore', lat: 22.72, lng: 75.87 },
+  { name: 'Thane', lat: 19.22, lng: 73.02 },
+  { name: 'Bhopal', lat: 23.27, lng: 77.42 },
+  { name: 'Visakhapatnam', lat: 17.72, lng: 83.27 },
+  { name: 'Patna', lat: 25.63, lng: 85.15 },
+  { name: 'Vadodara', lat: 22.33, lng: 73.20 },
+  { name: 'Ghaziabad', lat: 28.68, lng: 77.45 },
+  { name: 'Ludhiana', lat: 30.91, lng: 75.87 },
+  { name: 'Agra', lat: 27.20, lng: 78.00 },
+  { name: 'Nashik', lat: 20.00, lng: 73.80 },
+  { name: 'Faridabad', lat: 28.43, lng: 77.33 },
+  { name: 'Meerut', lat: 29.00, lng: 77.73 },
+  { name: 'Rajkot', lat: 22.31, lng: 70.81 },
+  { name: 'Varanasi', lat: 25.33, lng: 83.03 },
+  { name: 'Srinagar', lat: 34.10, lng: 74.83 },
+  { name: 'Amritsar', lat: 31.65, lng: 74.90 },
+  { name: 'Allahabad', lat: 25.45, lng: 81.87 },
+  { name: 'Coimbatore', lat: 11.03, lng: 76.98 },
+  { name: 'Jabalpur', lat: 23.17, lng: 79.96 },
+  { name: 'Gwalior', lat: 26.22, lng: 78.18 },
+  { name: 'Vijayawada', lat: 16.52, lng: 80.65 },
+  { name: 'Jodhpur', lat: 26.29, lng: 73.02 },
+  { name: 'Madurai', lat: 9.92, lng: 78.12 },
+  { name: 'Raipur', lat: 21.25, lng: 81.64 },
+  { name: 'Kochi', lat: 9.96, lng: 76.28 },
+  { name: 'Chandigarh', lat: 30.75, lng: 76.79 },
+  { name: 'Guwahati', lat: 26.17, lng: 91.76 },
+  { name: 'Thiruvananthapuram', lat: 8.51, lng: 76.96 }
+];
+
+export const SPORTS_CONFIG: Record<SportType, { color: string; icon: any; colorHex: string }> = {
+  Cricket: { color: 'bg-blue-500', colorHex: '#3b82f6', icon: Activity },
+  Football: { color: 'bg-green-500', colorHex: '#22c55e', icon: Target },
+  Hockey: { color: 'bg-orange-500', colorHex: '#f97316', icon: Activity },
+  Badminton: { color: 'bg-purple-500', colorHex: '#a855f7', icon: Zap },
+  Tennis: { color: 'bg-yellow-500', colorHex: '#eab308', icon: Trophy },
+  'Table Tennis': { color: 'bg-pink-500', colorHex: '#ec4899', icon: CircleDot },
+  Kabaddi: { color: 'bg-red-500', colorHex: '#ef4444', icon: Swords },
+  Wrestling: { color: 'bg-red-600', colorHex: '#dc2626', icon: Swords },
+  Boxing: { color: 'bg-red-700', colorHex: '#b91c1c', icon: Swords },
+  Shooting: { color: 'bg-gray-500', colorHex: '#6b7280', icon: Crosshair },
+  Archery: { color: 'bg-lime-500', colorHex: '#84cc16', icon: Target },
+  Athletics: { color: 'bg-teal-500', colorHex: '#14b8a6', icon: Flag },
+  Swimming: { color: 'bg-cyan-500', colorHex: '#06b6d4', icon: Waves },
+  Volleyball: { color: 'bg-amber-500', colorHex: '#f59e0b', icon: Activity },
+  Basketball: { color: 'bg-orange-500', colorHex: '#f97316', icon: Activity },
+  Chess: { color: 'bg-slate-600', colorHex: '#475569', icon: Gamepad2 },
+  Carrom: { color: 'bg-amber-700', colorHex: '#92400e', icon: CircleDot },
+  'Kho Kho': { color: 'bg-violet-600', colorHex: '#7c3aed', icon: Activity },
+  Squash: { color: 'bg-cyan-600', colorHex: '#0891b2', icon: Trophy },
+  Golf: { color: 'bg-green-600', colorHex: '#16a34a', icon: Flag },
+  Cycling: { color: 'bg-blue-600', colorHex: '#2563eb', icon: Bike },
+  Weightlifting: { color: 'bg-orange-800', colorHex: '#7c2d12', icon: Dumbbell },
+  Gymnastics: { color: 'bg-pink-600', colorHex: '#db2777', icon: Activity },
+  'Martial Arts': { color: 'bg-red-800', colorHex: '#991b1b', icon: Swords },
+  Yoga: { color: 'bg-emerald-600', colorHex: '#059669', icon: PersonStanding },
+  Running: { color: 'bg-teal-600', colorHex: '#0d9488', icon: Flag },
+  Marathon: { color: 'bg-teal-700', colorHex: '#0f766e', icon: Flag },
+  Throwball: { color: 'bg-fuchsia-600', colorHex: '#c026d3', icon: Activity },
+  Handball: { color: 'bg-purple-600', colorHex: '#9333ea', icon: Activity },
+  Baseball: { color: 'bg-red-600', colorHex: '#dc2626', icon: Activity },
+};
+
+// Mock User Location (Center of Mumbai for demo)
+export const USER_LOCATION: UserLocation = {
+  latitude: 19.076,
+  longitude: 72.877
+};

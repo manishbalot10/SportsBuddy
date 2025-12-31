@@ -1,0 +1,7 @@
+{
+  "name": "SportsBuddy",
+  "description": "A map-based application to connect with nearby sports players, featuring clustering, filtering, and player profiles.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
