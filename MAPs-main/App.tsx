@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Header } from './components/Header';
-import { Map } from './components/Map';
+import { Map, ScalableMap } from './components/Map';
 import { PlayerCard } from './components/PlayerCard';
 import { FilterPanel } from './components/FilterPanel';
 import { USER_LOCATION } from './constants';
 import { Player, FilterState, SkillLevel } from './types';
+
+// Toggle between scalable (server-side clustering) and legacy mode
+const USE_SCALABLE_MAP = true;
 
 function App() {
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -37,18 +40,20 @@ function App() {
           lat: USER_LOCATION.latitude.toString(),
           lng: USER_LOCATION.longitude.toString(),
           radius: filters.maxDistance.toString(),
-          limit: '1000' // Fetch more to allow client-side filtering
+          limit: '100' // Reduced for faster loading
         });
 
         if (filters.sport !== 'All') {
           params.append('sport', filters.sport);
         }
 
-        const response = await fetch(`http://localhost:8000/api/users/nearby?${params.toString()}`);
+        const response = await fetch(`http://localhost:8080/api/users/nearby?${params.toString()}`);
         const data = await response.json();
+        // API loaded
         
-        if (data.users) {
+        if (data.users && data.users.length > 0) {
           setAllPlayers(data.users);
+          setFilteredPlayers(data.users);
         }
       } catch (error) {
         console.error('Failed to fetch players:', error);
@@ -57,9 +62,12 @@ function App() {
       }
     };
 
-    const debounceFetch = setTimeout(fetchPlayers, 300);
+    const debounceFetch = setTimeout(fetchPlayers, 100);
     return () => clearTimeout(debounceFetch);
   }, [filters.sport, filters.maxDistance]); // Refetch when API-relevant filters change
+
+  // WebSocket removed - Java backend uses REST API only
+  // Real-time updates can be added later via polling or Server-Sent Events
 
   // Client-side Filter Logic (Search + Levels)
   useEffect(() => {
@@ -75,9 +83,11 @@ function App() {
       );
     }
 
-    // 2. Level Filter
-    result = result.filter(p => filters.levels[p.level]);
-
+    // 2. Level Filter - make it robust (allow if level not in filters)
+    result = result.filter(p => {
+      const levelKey = p.level as keyof typeof filters.levels;
+      return filters.levels[levelKey] !== false; // Allow if true or undefined
+    });
     // 3. Distance Filter is handled by API, but we can double check or just trust API
     // The API returns users within maxDistance, so no need to re-filter strictly if API works.
     
@@ -100,13 +110,24 @@ function App() {
         onSearchChange={setSearchQuery}
       />
       
-      {/* Main Map Area */}
+      {/* Main Map Area - Scalable or Legacy */}
       <div className="absolute inset-0 z-0">
-        <Map 
-          players={filteredPlayers}
-          onPlayerSelect={setSelectedPlayer}
-          viewMode={viewMode}
-        />
+        {USE_SCALABLE_MAP ? (
+          <ScalableMap 
+            onPlayerSelect={setSelectedPlayer}
+            onTotalChange={(total) => setFilteredPlayers(prev => 
+              prev.length !== total ? Array(total).fill({} as Player) : prev
+            )}
+            sport={filters.sport}
+            viewMode={viewMode}
+          />
+        ) : (
+          <Map 
+            players={filteredPlayers}
+            onPlayerSelect={setSelectedPlayer}
+            viewMode={viewMode}
+          />
+        )}
       </div>
 
       {/* View Toggle - Minimalist Pill */}

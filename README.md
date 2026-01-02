@@ -1,110 +1,46 @@
 # SportsBuddy 🏅
 
-**SportsBuddy** is a scalable, full-stack application designed to connect sports enthusiasts, find nearby players, and discover venue hotspots using machine learning.
+**SportsBuddy** is a web application to connect sports enthusiasts and find nearby players.
 
-## 🚀 Executive Summary
+## 🏗️ Architecture
 
-This project was built as part of a 10-week internship plan focusing on backend infrastructure scaling and ML feature integration. It transitions from a simple frontend prototype to a robust architecture capable of handling 10,000+ users.
-
-## 🏗️ Technical Architecture
+```
+React Frontend → Java Backend (Spring Boot) → Stapubox APIs
+```
 
 ### **Frontend**
-- **Framework:** React 18 with Vite
-- **Language:** TypeScript
-- **Maps:** React Leaflet + Leaflet Heatmap
-- **Styling:** TailwindCSS + Lucide React Icons
-- **Design:** Minimalist, clean UI with dark/light mode support
+- **Framework:** React 18 + Vite + TypeScript
+- **Maps:** React Leaflet with CartoDB Voyager tiles
+- **Features:** Marker clustering, Heatmap view, Filters
+- **Styling:** TailwindCSS
 
 ### **Backend**
-- **Framework:** FastAPI (Python)
-- **Database:** PostgreSQL 15 + PostGIS (Geospatial Data)
-- **Caching:** Redis (Session & API Response Caching)
-- **ML/AI:** Scikit-Learn (Player Matching), K-Means (Hotspot Detection)
-- **Admin Dashboard:** Streamlit
-
-### **Infrastructure**
-- **Containerization:** Docker & Docker Compose
-- **Services:**
-  - `sportsbuddy_db`: PostgreSQL + PostGIS
-  - `sportsbuddy_redis`: Redis Cache
-  - `backend`: FastAPI Application
-  - `dashboard`: Streamlit Admin Panel
+- **Framework:** Spring Boot 3.2 (Java 17)
+- **Function:** REST API proxy to Stapubox
+- **No Database:** All data from Stapubox APIs
 
 ---
 
-## ✨ Key Features
-
-1.  **Interactive Map Interface:**
-    - Real-time user clustering for performance.
-    - Heatmap view to visualize player density.
-    - Custom map markers by sport type.
-
-2.  **Advanced Search & Filtering:**
-    - Filter by 30+ sports, skill levels (Beginner to Professional), and distance.
-    - Full-text search for names and cities.
-
-3.  **Smart Player Matching (ML):**
-    - **Collaborative Filtering:** Matches players based on skill level, location proximity, availability overlap, and play style.
-    - **Scoring System:** Provides a 0-100 match quality score with explainable insights.
-
-4.  **Hotspot Detection (ML):**
-    - Uses **K-Means Clustering** to identify popular playing venues.
-    - Analyzes player density to suggest "Hotspots" dynamically.
-
-5.  **Admin Dashboard:**
-    - Visualize user growth, city distribution, and popular sports.
-    - Interactive geospatial analysis of user base.
-
----
-
-## 🛠️ Setup & Installation
+## 🛠️ Setup
 
 ### Prerequisites
-- Docker Desktop installed
-- Node.js (v18+) & npm
-- Python 3.9+
+- Java 17+
+- Node.js 18+
 
-### 1. Clone & Database Setup
-Start the infrastructure using Docker:
+### 1. Start Java Backend
 ```bash
-cd backend
-docker-compose up -d
+cd java-backend
+./mvnw spring-boot:run
 ```
-This spins up PostgreSQL (Port 5432) and Redis (Port 6379).
+*Backend running at: http://localhost:8080*
 
-### 2. Backend Setup
-Set up the Python environment and run the API:
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-pip install -r ../backend_requirements.txt
-
-# Run Data Migration (Populate DB with synthetic data)
-python migrate_data.py
-
-# Start FastAPI Server
-cd app
-uvicorn main:app --reload --port 8000
-```
-*API Documentation available at: http://localhost:8000/api/docs*
-
-### 3. Frontend Setup
-Run the React client:
+### 2. Start React Frontend
 ```bash
 cd MAPs-main
 npm install
-npm run dev
+npm run dev -- --port 3002
 ```
-*Frontend running at: http://localhost:3000*
-
-### 4. Admin Dashboard
-Launch the analytics dashboard:
-```bash
-# From root directory (ensure venv is active)
-streamlit run backend/dashboard/app.py
-```
-*Dashboard running at: http://localhost:8501*
+*Frontend running at: http://localhost:3002*
 
 ---
 
@@ -113,42 +49,51 @@ streamlit run backend/dashboard/app.py
 ```
 MAPS/
 ├── MAPs-main/              # React Frontend
-│   ├── src/
-│   │   ├── components/     # Map, PlayerCard, FilterPanel
-│   │   └── App.tsx         # Main UI Logic
-│   └── vite.config.ts      # Build Config
+│   ├── components/         # Map, PlayerCard, FilterPanel
+│   ├── App.tsx             # Main UI
+│   └── constants.ts        # Config
 │
-├── backend/                # Backend Infrastructure
-│   ├── app/
-│   │   └── main.py         # FastAPI Endpoints
-│   ├── dashboard/          # Streamlit Admin Dashboard
-│   ├── ml_features/        # Machine Learning Modules
-│   │   ├── player_matching.py
-│   │   └── hotspot_detection.py
-│   ├── database_schema.sql # PostGIS Schema
-│   └── docker-compose.yml  # Infrastructure Config
+├── java-backend/           # Spring Boot Backend
+│   ├── src/main/java/com/sportsbuddy/
+│   │   ├── controller/     # REST Endpoints
+│   │   ├── service/        # Stapubox API Integration
+│   │   └── model/          # Data Models
+│   └── pom.xml             # Maven Config
 │
-├── generate_dataset.py     # Synthetic Data Generator
-└── README.md               # Documentation
+└── README.md
 ```
 
 ---
 
 ## 🧪 API Endpoints
 
-- `GET /api/users/nearby` - Find players within radius.
-- `GET /api/users/clusters` - Server-side map clustering.
-- `GET /api/users/{id}/matches` - Get ML-based player matches.
-- `GET /api/hotspots` - Get detected venue hotspots.
-- `GET /api/stats` - System statistics.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/users/nearby` | GET | Find players by location |
+| `/api/sports` | GET | List available sports |
+| `/api/users/{id}` | GET | Get player details |
+| `/api/health` | GET | Health check |
+
+### Query Parameters for `/api/users/nearby`
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| lat | Double | required | Latitude |
+| lng | Double | required | Longitude |
+| radius | Double | 50 | Radius in km |
+| sport | String | null | Filter by sport |
+| limit | Integer | 100 | Max results |
 
 ---
 
-## 📈 Success Metrics (Internship Goals)
-- [x] **Scalability:** 10,000+ users supported via PostGIS & Redis.
-- [x] **Performance:** Sub-100ms API response time for spatial queries.
-- [x] **Intelligence:** ML-driven matching and analytics.
-- [x] **Visualization:** Interactive heatmaps and dashboards.
+## ⚠️ Configuration
+
+Update Stapubox API credentials in `java-backend/src/main/resources/application.properties`:
+
+```properties
+stapubox.api.base-url=https://api.stapubox.com/v1
+stapubox.api.key=YOUR_API_KEY_HERE
+```
 
 ---
-*Created for SportsBuddy Internship Project • 2025*
+*SportsBuddy • 2025*

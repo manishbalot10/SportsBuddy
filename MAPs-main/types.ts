@@ -17,6 +17,7 @@ export interface Player {
   longitude: number;
   avatar: string;
   distance_km?: number;
+  is_new?: boolean;
 }
 
 export interface FilterState {
