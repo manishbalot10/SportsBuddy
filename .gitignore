@@ -6,3 +6,21 @@ node_modules/
 .env
 *.db
 .pytest_cache/
+
+# Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Frontend
+dist/
+build/
+coverage/

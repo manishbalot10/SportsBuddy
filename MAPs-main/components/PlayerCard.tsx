@@ -31,17 +31,24 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return (R * c).toFixed(1);
 };
 
-// --- StapuBox Website Palette (orange-led) ---
-const STAPU_COLORS = {
-  cardBg: '#1C1C1C',        // brand-ish dark
-  border: 'rgba(255,255,255,0.06)',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#A1A1A1',
-  textTertiary: '#8B8B8B',
-  brandOrange: '#E6862E',   // website CTA orange
-  brandOrangeDeep: '#D9771F',
-  brandBlue: '#37A9E1',     // website accent blue (use sparingly)
-  statusGreen: '#22C55E',
+// Skill level icons and colors matching the filter design
+const LEVEL_CONFIG: Record<string, { icon: React.ReactNode; color: string }> = {
+  Beginner: {
+    color: '#22c55e',
+    icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+  },
+  Intermediate: {
+    color: '#3b82f6',
+    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  },
+  Advanced: {
+    color: '#a855f7',
+    icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" clipRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/></svg>
+  },
+  Professional: {
+    color: '#f97316',
+    icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" clipRule="evenodd" d="M5 4a2 2 0 012-2h10a2 2 0 012 2v2h1a2 2 0 110 4h-1c-.41 3.96-3.32 7.15-7.21 7.46V20h3a1 1 0 110 2H8a1 1 0 110-2h3v-2.54C7.32 17.15 4.41 13.96 4 10H3a2 2 0 110-4h1V4zm2 2v4a5 5 0 0010 0V6H7z"/></svg>
+  },
 };
 
 export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose }) => {
@@ -65,97 +72,114 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose }) => {
     USER_LOCATION.latitude, USER_LOCATION.longitude,
     displayPlayer.latitude, displayPlayer.longitude
   );
+  const levelConfig = LEVEL_CONFIG[displayPlayer.level] || LEVEL_CONFIG.Beginner;
 
   return (
     <>
-      {/* Floating Card - Compact & Premium */}
+      {/* White Floating Card - Modern Filter Style */}
       <div
-        className={`fixed bottom-4 left-4 right-4 z-[1000] transition-all duration-400 ease-out ${
-          isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'
+        className={`fixed bottom-4 left-4 right-4 z-[1000] transition-all duration-300 ease-out ${
+          isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0 pointer-events-none'
         }`}
-        style={{ maxWidth: '440px', margin: '0 auto' }}
+        style={{ maxWidth: '420px', margin: '0 auto' }}
       >
         <div
-          className="relative"
+          className="bg-white overflow-hidden"
           style={{
-            background: STAPU_COLORS.cardBg,
-            borderRadius: '18px',
-            boxShadow: '0px 14px 34px rgba(0, 0, 0, 0.38)',
-            border: `1px solid ${STAPU_COLORS.border}`,
+            borderRadius: '24px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
           }}
         >
-          {/* Close (better contrast like we discussed) */}
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/5 flex items-center justify-center transition-all"
-            style={{ color: '#9CA3AF' }}
-            onMouseEnter={(e) => ((e.currentTarget.style.color = '#FFFFFF'))}
-            onMouseLeave={(e) => ((e.currentTarget.style.color = '#9CA3AF'))}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.7">
-              <path d="M1 1l8 8M9 1l-8 8" />
-            </svg>
-          </button>
+          {/* Header */}
+          <div className="px-6 pt-5 pb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">Player Found</h2>
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 rounded-full bg-gray-100 text-gray-500 text-sm font-medium hover:bg-gray-200 transition-colors"
+            >
+              Close
+            </button>
+          </div>
 
-          <div className="p-4 flex items-center gap-3">
-            {/* Avatar with ORANGE ring (brand-aligned) */}
-            <div className="relative flex-shrink-0">
-              <div
-                className="w-12 h-12 rounded-full p-[2px] overflow-hidden"
-                style={{ background: STAPU_COLORS.brandOrange }}
-              >
-                <img
-                  src={displayPlayer.avatar}
-                  alt=""
-                  className="w-full h-full rounded-full object-cover"
-                  style={{ 
-                    border: `2px solid ${STAPU_COLORS.cardBg}`,
-                    filter: 'blur(4px)', // Frosted/Anonymous effect
-                    transform: 'scale(1.1)' // Prevent blurred edges
-                  }}
-                />
+          {/* Divider */}
+          <div className="h-px w-full bg-gray-100" />
+
+          {/* Content */}
+          <div className="px-6 py-5 space-y-5">
+            {/* Player Info Row */}
+            <div className="flex items-center gap-4">
+              {/* Avatar with gradient ring */}
+              <div className="relative flex-shrink-0">
+                <div
+                  className="w-16 h-16 rounded-full p-[3px]"
+                  style={{ background: `linear-gradient(135deg, #2563EB, ${levelConfig.color})` }}
+                >
+                  <img
+                    src={displayPlayer.avatar}
+                    alt=""
+                    className="w-full h-full rounded-full object-cover bg-white"
+                    style={{ filter: 'blur(3px)', transform: 'scale(1.05)' }}
+                  />
+                </div>
+                {/* Online indicator */}
+                <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full border-[3px] border-white" />
               </div>
 
-              {/* Active Status Indicator */}
-              <div
-                className="absolute bottom-0 right-0 w-3 h-3 rounded-full"
-                style={{
-                  background: STAPU_COLORS.statusGreen,
-                  border: `2px solid ${STAPU_COLORS.cardBg}`,
-                  zIndex: 10
-                }}
-              />
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0 pr-6">
-              <h3 className="text-[15px] font-semibold truncate leading-tight" style={{ color: STAPU_COLORS.textPrimary }}>
-                {displayPlayer.level} {displayPlayer.sport} Player
-              </h3>
-
-              <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                {/* subtle blue micro-accent */}
-                <span className="text-[13px]" style={{ color: STAPU_COLORS.brandBlue }}>
-                  {sportEmoji}
-                </span>
-
-                <span className="text-[13px] truncate" style={{ color: STAPU_COLORS.textSecondary }}>
+              {/* Name & Location */}
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold text-gray-900 truncate">
+                  {displayPlayer.level} {displayPlayer.sport} Player
+                </h3>
+                <p className="text-sm text-gray-500 truncate flex items-center gap-1.5">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  </svg>
                   {displayPlayer.city}
-                  <span style={{ color: STAPU_COLORS.textTertiary }}> · {distance}km away</span>
-                </span>
+                </p>
+              </div>
+
+              {/* Distance Badge */}
+              <div className="flex-shrink-0 bg-blue-100 text-[#1E40AF] font-bold text-sm px-3 py-1.5 rounded-lg">
+                {distance} km
               </div>
             </div>
 
-            {/* CTA — ORANGE like website (most important change) */}
+            {/* Sport & Level Pills */}
+            <div className="flex flex-wrap gap-2">
+              {/* Sport Pill */}
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 ring-1 ring-gray-200">
+                <span className="text-xl">{sportEmoji}</span>
+                <span className="font-semibold text-gray-700 text-sm">{displayPlayer.sport}</span>
+              </div>
+
+              {/* Level Pill */}
+              <div 
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2"
+                style={{ 
+                  borderColor: '#2563EB',
+                  backgroundColor: '#eff6ff'
+                }}
+              >
+                <div 
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-white"
+                  style={{ backgroundColor: '#2563EB' }}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                    <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <span className="font-semibold text-gray-700 text-sm">{displayPlayer.level}</span>
+                <span style={{ color: levelConfig.color }}>{levelConfig.icon}</span>
+              </div>
+            </div>
+
+            {/* Connect Button */}
             <button
               onClick={() => setShowDownloadPrompt(true)}
-              className="flex-shrink-0 h-9 px-5 rounded-full text-[13px] font-semibold text-white transition-all active:scale-95 hover:brightness-110"
-              style={{
-                background: `linear-gradient(135deg, ${STAPU_COLORS.brandOrange}, ${STAPU_COLORS.brandOrangeDeep})`,
-                boxShadow: '0 6px 16px rgba(230, 134, 46, 0.28)',
-              }}
+              className="w-full bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-base py-4 rounded-xl shadow-lg transition-all active:scale-[0.98]"
             >
-              Connect
+              Connect on App
             </button>
           </div>
         </div>
