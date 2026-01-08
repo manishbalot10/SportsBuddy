@@ -30,3 +30,20 @@ export interface UserLocation {
   latitude: number;
   longitude: number;
 }
+
+export interface Coach {
+  id: number;
+  name: string;
+  sport: SportType;
+  specialization: string;
+  experience_years: number;
+  certifications: string[];
+  city: string;
+  latitude: number;
+  longitude: number;
+  avatar: string;
+  hourly_rate?: number;
+  rating?: number;
+  students_trained?: number;
+  distance_km?: number;
+}

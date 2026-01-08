@@ -5,9 +5,10 @@ import { trackEvent } from '../utils/analytics';
 interface DownloadPromptProps {
   isOpen: boolean;
   onClose: () => void;
+  playerName?: string;
 }
 
-export const DownloadPrompt: React.FC<DownloadPromptProps> = ({ isOpen, onClose }) => {
+export const DownloadPrompt: React.FC<DownloadPromptProps> = ({ isOpen, onClose, playerName }) => {
   if (!isOpen) return null;
 
   return (
@@ -32,9 +33,14 @@ export const DownloadPrompt: React.FC<DownloadPromptProps> = ({ isOpen, onClose 
         </div>
         
         <div className="p-8 text-center">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Get the Full Experience</h3>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              {playerName ? `Connect with ${playerName}` : 'Get the Full Experience'}
+            </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-8">
-                Download the SportsBuddy app to connect, chat, and play with sports enthusiasts near you.
+              {playerName 
+                ? `Download SportsBuddy to view ${playerName}'s full profile, chat, and play together.`
+                : 'Download the SportsBuddy app to connect, chat, and play with sports enthusiasts near you.'
+              }
             </p>
             
             <div className="space-y-3">

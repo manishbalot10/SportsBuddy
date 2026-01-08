@@ -1,10 +1,9 @@
 import React, { useMemo, useEffect, useCallback, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import { Player } from '../types';
 import { SPORTS_CONFIG, USER_LOCATION } from '../constants';
-import { HeatmapLayer } from './HeatmapLayer';
 
 // Types for scalable clustering API
 interface ClusterItem {
@@ -35,7 +34,7 @@ L.Icon.Default.mergeOptions({
 interface MapProps {
   players: Player[];
   onPlayerSelect: (player: Player) => void;
-  viewMode: 'markers' | 'density';
+  viewMode: 'players' | 'coaches';
 }
 
 // Fix map size invalidation on load
@@ -234,10 +233,6 @@ export const Map: React.FC<MapProps> = ({ players, onPlayerSelect, viewMode }) =
     return createCustomIcon(sport);
   };
 
-  const heatmapPoints = useMemo(() => {
-    return players.map(p => [p.latitude, p.longitude, 0.5] as [number, number, number]);
-  }, [players]);
-
   return (
     <div className="w-full h-full z-0">
       <MapContainer
@@ -255,41 +250,32 @@ export const Map: React.FC<MapProps> = ({ players, onPlayerSelect, viewMode }) =
 
         <MapInvalidator />
 
-        {/* User Location */}
-        <Marker position={[USER_LOCATION.latitude, USER_LOCATION.longitude]} icon={userIcon}>
-           <Popup>You are here</Popup>
-        </Marker>
-
-        {/* View Mode Logic */}
-        {viewMode === 'markers' ? (
-          <MarkerClusterGroup
-            chunkedLoading
-            spiderfyOnMaxZoom={true}
-            showCoverageOnHover={false}
-            maxClusterRadius={60}
-          >
-            {players.map((player) => (
-              <Marker
-                key={player.id}
-                position={[player.latitude, player.longitude]}
-                icon={getIcon(player.sport)}
-                eventHandlers={{
-                  click: () => onPlayerSelect(player),
-                }}
-              >
-                <Popup>
-                  <div style={{ minWidth: '150px', padding: '4px' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>{player.name}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>{player.sport} • {player.level}</div>
-                    {player.distance_km && <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>{player.distance_km} km away</div>}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MarkerClusterGroup>
-        ) : (
-          <HeatmapLayer points={heatmapPoints} />
-        )}
+        {/* Player Markers */}
+        <MarkerClusterGroup
+          chunkedLoading
+          spiderfyOnMaxZoom={true}
+          showCoverageOnHover={false}
+          maxClusterRadius={60}
+        >
+          {players.map((player) => (
+            <Marker
+              key={player.id}
+              position={[player.latitude, player.longitude]}
+              icon={getIcon(player.sport)}
+              eventHandlers={{
+                click: () => onPlayerSelect(player),
+              }}
+            >
+              <Popup>
+                <div style={{ minWidth: '150px', padding: '4px' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>{player.name}</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>{player.sport} • {player.level}</div>
+                  {player.distance_km && <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>{player.distance_km} km away</div>}
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MarkerClusterGroup>
       </MapContainer>
       
       {/* Add custom style for user marker pulse */}
@@ -298,6 +284,9 @@ export const Map: React.FC<MapProps> = ({ players, onPlayerSelect, viewMode }) =
           0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
           70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
           100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
@@ -320,7 +309,7 @@ interface ScalableMapProps {
   onPlayerSelect: (player: Player) => void;
   onTotalChange?: (total: number) => void;
   sport?: string;
-  viewMode: 'markers' | 'density';
+  viewMode: 'players' | 'coaches';
 }
 
 // Google-style "My Location" button (renders inside MapContainer, uses useMap)
@@ -396,23 +385,48 @@ const ScalableMarkers: React.FC<{
 
   return (
     <>
-      {/* 1. Server-side Pre-aggregated Clusters (Static) */}
-      {clusters.filter(c => c.isCluster).map((cluster, idx) => (
-        <Marker
-          key={`cluster-${cluster.id}-${idx}`}
-          position={[cluster.latitude, cluster.longitude]}
-          icon={createClusterIcon(cluster.count, cluster.sportCounts)}
-          eventHandlers={{
-            click: () => handleClusterClick(cluster),
-          }}
-        >
-          {/* Optional: Remove Popup for clusters to prioritize Zoom, or keep on hover? 
-              Let's keep Popup but zoom on click takes precedence usually. 
-               actually, let's allow popup but zoom is nice. */}
-        </Marker>
-      ))}
+      {/* 1. Server-side Pre-aggregated Clusters (Static) - with hover tooltip */}
+      {clusters.filter(c => c.isCluster).map((cluster, idx) => {
+        const topSports = cluster.sportCounts 
+          ? Object.entries(cluster.sportCounts)
+              .sort((a, b) => (b[1] as number) - (a[1] as number))
+              .slice(0, 3)
+              .map(([sport]) => sport)
+          : [];
+        
+        return (
+          <Marker
+            key={`cluster-${cluster.id}-${idx}`}
+            position={[cluster.latitude, cluster.longitude]}
+            icon={createClusterIcon(cluster.count, cluster.sportCounts)}
+            eventHandlers={{
+              click: () => handleClusterClick(cluster),
+            }}
+          >
+            <Tooltip 
+              direction="top" 
+              offset={[0, -15]} 
+              opacity={0.95}
+            >
+              <div style={{ padding: '6px 10px', minWidth: '120px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>
+                  {cluster.count >= 1000 ? `${(cluster.count/1000).toFixed(1)}k` : cluster.count} Players
+                </div>
+                {topSports.length > 0 && (
+                  <div style={{ fontSize: '11px', color: '#666' }}>
+                    {topSports.join(' • ')}
+                  </div>
+                )}
+                <div style={{ fontSize: '10px', color: '#999', marginTop: '4px' }}>
+                  Click to zoom in
+                </div>
+              </div>
+            </Tooltip>
+          </Marker>
+        );
+      })}
 
-      {/* 2. Individual Markers (Client-side Clustered for Animation) */}
+      {/* 2. Individual Markers (Client-side Clustered for Animation) - with hover tooltip */}
       <MarkerClusterGroup
         chunkedLoading
         spiderfyOnMaxZoom={true}
@@ -429,16 +443,28 @@ const ScalableMarkers: React.FC<{
             }}
           >
             {cluster.player && (
-              <Popup>
-                <div style={{ minWidth: '150px', padding: '4px' }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
-                    {cluster.player.level} {cluster.player.sport} Player
+              <Tooltip 
+                direction="top" 
+                offset={[0, -16]} 
+                opacity={0.95}
+              >
+                <div style={{ padding: '8px 12px', minWidth: '150px' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#1a1a1a' }}>
+                    {cluster.player.name || 'Player'}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>
-                    Tap to view details
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
+                    {cluster.player.sport} • {cluster.player.level}
+                  </div>
+                  {cluster.player.distance_km && (
+                    <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
+                      📍 {cluster.player.distance_km} km away
+                    </div>
+                  )}
+                  <div style={{ fontSize: '10px', color: '#2563eb', marginTop: '6px', fontWeight: '500' }}>
+                    Click for full profile
                   </div>
                 </div>
-              </Popup>
+              </Tooltip>
             )}
           </Marker>
         ))}
@@ -448,8 +474,9 @@ const ScalableMarkers: React.FC<{
 };
 
 // India center for fallback (when geolocation denied)
-const INDIA_CENTER = { lat: 20.5937, lng: 78.9629 };
-const INDIA_ZOOM = 5;
+// India Gate, New Delhi
+const INDIA_CENTER = { lat: 28.6129, lng: 77.2295 };
+const INDIA_ZOOM = 13;
 
 // Component to set initial map view based on GPS detection
 const InitialLocationDetector: React.FC<{ 
@@ -508,10 +535,6 @@ export const ScalableMap: React.FC<ScalableMapProps> = ({
     setHasGpsLocation(true);
   }, []);
 
-  const heatmapPoints = useMemo(() => {
-    return clusters.map(c => [c.latitude, c.longitude, c.count / 10] as [number, number, number]);
-  }, [clusters]);
-
   return (
     <div className="w-full h-full z-0">
       <MapContainer
@@ -547,12 +570,8 @@ export const ScalableMap: React.FC<ScalableMapProps> = ({
         {/* Google-style My Location Button */}
         <MyLocationControl onLocationUpdate={handleLocationUpdate} />
 
-        {/* Render clusters or heatmap */}
-        {viewMode === 'markers' ? (
-          <ScalableMarkers clusters={clusters} onPlayerSelect={onPlayerSelect} />
-        ) : (
-          <HeatmapLayer points={heatmapPoints} />
-        )}
+        {/* Render player/coach markers */}
+        <ScalableMarkers clusters={clusters} onPlayerSelect={onPlayerSelect} />
       </MapContainer>
       
       <style>{`
@@ -563,6 +582,19 @@ export const ScalableMap: React.FC<ScalableMapProps> = ({
         }
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        .leaflet-tooltip {
+          background: white !important;
+          border: none !important;
+          border-radius: 12px !important;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
+          padding: 0 !important;
+        }
+        .leaflet-tooltip-top:before {
+          border-top-color: white !important;
+        }
+        .leaflet-tooltip-bottom:before {
+          border-bottom-color: white !important;
         }
       `}</style>
     </div>

@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Player } from '../types';
+import { Coach } from '../types';
 import { SPORTS_CONFIG, USER_LOCATION } from '../constants';
 import { DownloadPrompt } from './DownloadPrompt';
 
-interface PlayerCardProps {
-  player: Player | null;
+interface CoachCardProps {
+  coach: Coach | null;
   onClose: () => void;
-  isConnected: boolean;
-  onConnect: (playerId: number) => void;
 }
 
 const SPORT_EMOJI: Record<string, string> = {
@@ -31,35 +29,27 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return (R * c).toFixed(1);
 };
 
-const LEVEL_CONFIG: Record<string, { color: string; accent: string }> = {
-  Beginner: { color: '#22c55e', accent: '#dcfce7' },
-  Intermediate: { color: '#3b82f6', accent: '#dbeafe' },
-  Advanced: { color: '#a855f7', accent: '#f3e8ff' },
-  Professional: { color: '#f97316', accent: '#ffedd5' },
-};
-
-export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose }) => {
-  const [displayPlayer, setDisplayPlayer] = useState<Player | null>(null);
+export const CoachCard: React.FC<CoachCardProps> = ({ coach, onClose }) => {
+  const [displayCoach, setDisplayCoach] = useState<Coach | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [showDownloadPrompt, setShowDownloadPrompt] = useState(false);
 
   useEffect(() => {
-    if (player) {
-      setDisplayPlayer(player);
+    if (coach) {
+      setDisplayCoach(coach);
       requestAnimationFrame(() => setIsVisible(true));
     } else {
       setIsVisible(false);
     }
-  }, [player]);
+  }, [coach]);
 
-  if (!displayPlayer) return null;
+  if (!displayCoach) return null;
 
-  const sportEmoji = SPORT_EMOJI[displayPlayer.sport] || '🏅';
-  const distance = displayPlayer.distance_km ?? calculateDistance(
+  const sportEmoji = SPORT_EMOJI[displayCoach.sport] || '🏅';
+  const distance = displayCoach.distance_km ?? calculateDistance(
     USER_LOCATION.latitude, USER_LOCATION.longitude,
-    displayPlayer.latitude, displayPlayer.longitude
+    displayCoach.latitude, displayCoach.longitude
   );
-  const levelConfig = LEVEL_CONFIG[displayPlayer.level] || LEVEL_CONFIG.Beginner;
 
   return (
     <>
@@ -69,15 +59,15 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose }) => {
         }`}
         style={{ maxWidth: '420px', margin: '0 auto' }}
       >
-        {/* Minimalist Card - Left accent bar design */}
+        {/* Asymmetric Card - Left accent bar design */}
         <div className="relative bg-white overflow-hidden" style={{ borderRadius: '20px' }}>
-          {/* Left accent bar - color based on level */}
+          {/* Left accent bar - emerald for coaches */}
           <div 
             className="absolute left-0 top-0 bottom-0 w-1.5"
-            style={{ backgroundColor: levelConfig.color }}
+            style={{ background: 'linear-gradient(180deg, #059669 0%, #10b981 100%)' }}
           />
           
-          {/* Large background emoji - very subtle */}
+          {/* Large background emoji - subtle */}
           <div 
             className="absolute -right-8 -bottom-8 text-[140px] opacity-[0.04] pointer-events-none select-none"
             style={{ lineHeight: 1 }}
@@ -99,59 +89,84 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose }) => {
               </button>
             </div>
 
-            {/* Player info - asymmetric layout */}
+            {/* Coach info - asymmetric layout */}
             <div className="space-y-4">
-              {/* Sport emoji and title - left aligned, large */}
+              {/* Name and badge row */}
               <div className="flex items-start gap-3">
                 <div 
                   className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
-                  style={{ backgroundColor: levelConfig.accent }}
+                  style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' }}
                 >
-                  {sportEmoji}
+                  🎓
                 </div>
                 <div className="flex-1 min-w-0 pt-1">
-                  <div 
-                    className="text-xs font-semibold uppercase tracking-wide mb-1"
-                    style={{ color: levelConfig.color }}
-                  >
-                    {displayPlayer.level}
+                  <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">
+                    {displayCoach.specialization}
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 leading-tight">
-                    {displayPlayer.sport} Player
+                    {displayCoach.sport} Coach
                   </h3>
                 </div>
               </div>
 
-              {/* Location row - clean */}
-              <div className="flex items-center justify-between py-3 border-y border-gray-100">
+              {/* Stats row - horizontal */}
+              <div className="flex items-center gap-6 py-3 border-y border-gray-100">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">{displayCoach.experience_years}</div>
+                  <div className="text-xs text-gray-500">Years Exp</div>
+                </div>
+                <div className="w-px h-10 bg-gray-200" />
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">{displayCoach.students_trained || '50'}+</div>
+                  <div className="text-xs text-gray-500">Trained</div>
+                </div>
+                <div className="w-px h-10 bg-gray-200" />
+                <div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-2xl font-bold text-gray-900">{displayCoach.rating || '4.8'}</span>
+                    <svg className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                    </svg>
+                  </div>
+                  <div className="text-xs text-gray-500">Rating</div>
+                </div>
+              </div>
+
+              {/* Location and distance */}
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
                   </svg>
-                  {displayPlayer.city}
+                  {displayCoach.city}
                 </div>
-                <div 
-                  className="text-sm font-semibold"
-                  style={{ color: levelConfig.color }}
-                >
+                <div className="text-sm font-semibold text-emerald-600">
                   {distance} km away
                 </div>
               </div>
 
-              {/* Status indicator */}
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs text-gray-500">Available to connect</span>
-              </div>
+              {/* Certifications */}
+              {displayCoach.certifications && displayCoach.certifications.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {displayCoach.certifications.slice(0, 2).map((cert, i) => (
+                    <span 
+                      key={i}
+                      className="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full font-medium"
+                    >
+                      {cert}
+                    </span>
+                  ))}
+                </div>
+              )}
 
-              {/* Action button - uses level color */}
+              {/* Action button */}
               <button
                 onClick={() => setShowDownloadPrompt(true)}
                 className="w-full py-3.5 rounded-xl font-semibold text-white transition-all active:scale-[0.98]"
-                style={{ backgroundColor: levelConfig.color }}
+                style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}
               >
-                Connect
+                Book Session
               </button>
             </div>
           </div>
@@ -162,7 +177,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose }) => {
         <DownloadPrompt 
           isOpen={showDownloadPrompt} 
           onClose={() => setShowDownloadPrompt(false)} 
-          playerName={displayPlayer.name}
+          playerName={displayCoach.name}
         />
       )}
     </>
