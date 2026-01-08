@@ -15,7 +15,8 @@ function App() {
   const [filteredPlayers, setFilteredPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'players' | 'coaches'>('players');
+  const [viewMode, setViewMode] = useState<'markers' | 'density'>('markers');
+  const [userTypeView, setUserTypeView] = useState<'players' | 'coaches'>('players');
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [connectedPlayerIds, setConnectedPlayerIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
@@ -132,9 +133,9 @@ function App() {
       {/* View Toggle - Minimalist Pill */}
       <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[800] flex bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-1 rounded-full shadow-lg border border-gray-200 dark:border-zinc-800">
         <button
-          onClick={() => setViewMode('players')}
+          onClick={() => setUserTypeView('players')}
           className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${
-            viewMode === 'players' 
+            userTypeView === 'players' 
               ? 'bg-blue-600 text-white shadow-sm' 
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800'
           }`}
@@ -142,9 +143,9 @@ function App() {
           Players
         </button>
         <button
-          onClick={() => setViewMode('coaches')}
+          onClick={() => setUserTypeView('coaches')}
           className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${
-            viewMode === 'coaches' 
+            userTypeView === 'coaches' 
               ? 'bg-emerald-600 text-white shadow-sm' 
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800'
           }`}
@@ -158,7 +159,7 @@ function App() {
         onFilterChange={setFilters}
       />
 
-      {viewMode === 'players' ? (
+      {userTypeView === 'players' ? (
         <PlayerCard 
           player={selectedPlayer}
           onClose={() => setSelectedPlayer(null)}
