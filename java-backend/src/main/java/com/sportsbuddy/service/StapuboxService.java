@@ -43,6 +43,25 @@ public class StapuboxService {
             List<Map<String, Object>> rawData = objectMapper.readValue(inputStream, new TypeReference<>() {});
             
             for (Map<String, Object> item : rawData) {
+                // Parse primarySports
+                List<Player.PrimarySport> primarySports = null;
+                if (item.containsKey("primarySports") && item.get("primarySports") != null) {
+                    List<Map<String, Object>> primarySportsRaw = (List<Map<String, Object>>) item.get("primarySports");
+                    primarySports = new ArrayList<>();
+                    for (Map<String, Object> ps : primarySportsRaw) {
+                        primarySports.add(new Player.PrimarySport(
+                            (String) ps.get("sport"),
+                            ((Number) ps.get("level")).intValue()
+                        ));
+                    }
+                }
+                
+                // Parse secondarySports
+                List<String> secondarySports = null;
+                if (item.containsKey("secondarySports") && item.get("secondarySports") != null) {
+                    secondarySports = (List<String>) item.get("secondarySports");
+                }
+                
                 allPlayers.add(Player.builder()
                     .id(((Number) item.get("id")).longValue())
                     .name((String) item.get("name"))
@@ -52,12 +71,15 @@ public class StapuboxService {
                     .latitude(((Number) item.get("latitude")).doubleValue())
                     .longitude(((Number) item.get("longitude")).doubleValue())
                     .avatar("https://ui-avatars.com/api/?name=" + ((String) item.get("name")).replace(" ", "+") + "&background=random")
+                    .primarySports(primarySports)
+                    .secondarySports(secondarySports)
                     .distanceKm(0.0)
                     .build());
             }
             System.out.println("Loaded " + allPlayers.size() + " players from JSON");
         } catch (IOException e) {
             System.err.println("Failed to load players JSON: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -66,20 +88,55 @@ public class StapuboxService {
      * PLACEHOLDER: Replace with actual Stapubox API call when available
      */
     public NearbyPlayersResponse getNearbyPlayers(Double lat, Double lng, Double radius, String sport, Integer limit) {
-        // TODO: Replace with actual Stapubox API call
-        // Example of what the real call would look like:
-        /*
-        return webClient.get()
-            .uri(stapuboxBaseUrl + "/users/nearby?lat={lat}&lng={lng}&radius={radius}&sport={sport}&limit={limit}",
-                 lat, lng, radius, sport, limit)
-            .header("Authorization", "Bearer " + apiKey)
-            .retrieve()
-            .bodyToMono(NearbyPlayersResponse.class)
-            .block();
-        */
-
-        // MOCK DATA - Returns placeholder players for demo
-        List<Player> mockPlayers = generateMockPlayers(lat, lng, radius, sport, limit);
+        // Use loaded players from JSON file
+        List<Player> nearbyPlayers = new ArrayList<>();
+        
+        for (Player player : allPlayers) {
+            // Calculate distance
+            double distance = calculateDistance(lat, lng, player.getLatitude(), player.getLongitude());
+            
+            if (distance <= radius) {
+                // Filter by sport if specified
+                if (sport != null && !sport.isEmpty() && !sport.equalsIgnoreCase("All")) {
+                    // Check primary sports
+                    boolean matchesSport = player.getSport().equalsIgnoreCase(sport);
+                    if (!matchesSport && player.getPrimarySports() != null) {
+                        for (Player.PrimarySport ps : player.getPrimarySports()) {
+                            if (ps.getSport().equalsIgnoreCase(sport)) {
+                                matchesSport = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!matchesSport) continue;
+                }
+                
+                // Clone player and set distance
+                Player playerWithDistance = Player.builder()
+                    .id(player.getId())
+                    .name(player.getName())
+                    .sport(player.getSport())
+                    .level(player.getLevel())
+                    .city(player.getCity())
+                    .latitude(player.getLatitude())
+                    .longitude(player.getLongitude())
+                    .avatar(player.getAvatar())
+                    .primarySports(player.getPrimarySports())
+                    .secondarySports(player.getSecondarySports())
+                    .distanceKm(Math.round(distance * 10.0) / 10.0)
+                    .build();
+                    
+                nearbyPlayers.add(playerWithDistance);
+            }
+        }
+        
+        // Sort by distance
+        nearbyPlayers.sort(Comparator.comparing(Player::getDistanceKm));
+        
+        // Apply limit
+        if (limit != null && nearbyPlayers.size() > limit) {
+            nearbyPlayers = nearbyPlayers.subList(0, limit);
+        }
 
         Map<String, Double> center = new HashMap<>();
         center.put("lat", lat);
@@ -89,9 +146,21 @@ public class StapuboxService {
                 .center(center)
                 .radiusKm(radius)
                 .sportFilter(sport)
-                .users(mockPlayers)
-                .count(mockPlayers.size())
+                .users(nearbyPlayers)
+                .count(nearbyPlayers.size())
                 .build();
+    }
+    
+    // Haversine formula to calculate distance between two points
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371; // Radius of the earth in km
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 
     /**

@@ -7,9 +7,22 @@ export type SportType =
 
 export type SkillLevel = 'Beginner' | 'Intermediate' | 'Advanced' | 'Professional';
 
+// Expertise levels: 1=Beginner, 2=Learner, 3=Intermediate, 4=Advanced, 5=Expert
+export type ExpertiseLevel = 1 | 2 | 3 | 4 | 5;
+
+export interface PrimarySport {
+  sport: SportType;
+  level: ExpertiseLevel; // 1-5 rating dots
+}
+
 export interface Player {
   id: number;
   name: string;
+  // Primary sports (up to 2) - shown with rating dots
+  primarySports: PrimarySport[];
+  // Secondary sports (max 3) - shown as text tags
+  secondarySports?: SportType[];
+  // Legacy fields for backward compatibility
   sport: SportType;
   level: SkillLevel;
   city: string;

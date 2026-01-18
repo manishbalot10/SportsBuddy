@@ -75,10 +75,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onFilterChang
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-3">
-            <SlidersHorizontal className="w-5 h-5 text-blue-600" />
+            <SlidersHorizontal className="w-5 h-5" style={{ color: '#E17827' }} />
             <span className="font-semibold text-gray-900">Filters</span>
             {activeFiltersCount > 0 && (
-              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+              <span className="px-2 py-0.5 text-xs font-bold rounded-full" style={{ backgroundColor: '#FEE2D5', color: '#E17827' }}>
                 {activeFiltersCount}
               </span>
             )}
@@ -124,9 +124,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onFilterChang
                   onClick={() => handleUserTypeChange('all')}
                   className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all ${
                     userType === 'all' 
-                      ? 'bg-blue-600 text-white' 
+                      ? 'text-white' 
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
+                  style={userType === 'all' ? { backgroundColor: '#E17827' } : {}}
                 >
                   All
                 </button>
@@ -134,9 +135,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onFilterChang
                   onClick={() => handleUserTypeChange('players')}
                   className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all ${
                     userType === 'players' 
-                      ? 'bg-blue-600 text-white' 
+                      ? 'text-white' 
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
+                  style={userType === 'players' ? { backgroundColor: '#E17827' } : {}}
                 >
                   <Users className="w-4 h-4" />
                   Players
@@ -145,9 +147,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onFilterChang
                   onClick={() => handleUserTypeChange('coaches')}
                   className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all ${
                     userType === 'coaches' 
-                      ? 'bg-blue-600 text-white' 
+                      ? 'text-white' 
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
+                  style={userType === 'coaches' ? { backgroundColor: '#00B0F0' } : {}}
                 >
                   <GraduationCap className="w-4 h-4" />
                   Coaches
@@ -204,7 +207,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onFilterChang
                 max="100"
                 value={filters.maxDistance}
                 onChange={(e) => onFilterChange({...filters, maxDistance: parseInt(e.target.value)})}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                style={{ accentColor: '#E17827' }}
               />
               <div className="flex justify-between mt-1 text-xs text-gray-400">
                 <span>1 km</span>

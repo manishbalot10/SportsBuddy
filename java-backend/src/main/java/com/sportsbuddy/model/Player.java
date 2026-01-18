@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.List;
 
 @Data
 @Builder
@@ -22,4 +23,16 @@ public class Player {
     
     @JsonProperty("distance_km")
     private Double distanceKm;
+    
+    // New fields for multi-sport support
+    private List<PrimarySport> primarySports;
+    private List<String> secondarySports;
+    
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PrimarySport {
+        private String sport;
+        private Integer level; // 1-5 expertise level
+    }
 }

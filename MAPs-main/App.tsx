@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Header } from './components/Header';
 import { Map, ScalableMap } from './components/Map';
 import { PlayerCard } from './components/PlayerCard';
-import { CoachCard } from './components/CoachCard';
+// import { CoachCard } from './components/CoachCard'; // Commented out - not needed now
 import { FilterPanel } from './components/FilterPanel';
 import { USER_LOCATION } from './constants';
-import { Player, Coach, FilterState, SkillLevel } from './types';
+import { Player, FilterState, SkillLevel } from './types';
+// import { Coach } from './types'; // Commented out - not needed now
 
 // Toggle between scalable (server-side clustering) and legacy mode
 const USE_SCALABLE_MAP = true;
@@ -16,8 +17,8 @@ function App() {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'markers' | 'density'>('markers');
-  const [userTypeView, setUserTypeView] = useState<'players' | 'coaches'>('players');
-  const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
+  // const [userTypeView, setUserTypeView] = useState<'players' | 'coaches'>('players'); // Commented out - not needed now
+  // const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null); // Commented out - not needed now
   const [connectedPlayerIds, setConnectedPlayerIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   
@@ -130,15 +131,16 @@ function App() {
         )}
       </div>
 
-      {/* View Toggle - Minimalist Pill */}
-      <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[800] flex bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-1 rounded-full shadow-lg border border-gray-200 dark:border-zinc-800">
+      {/* View Toggle - Commented out - not needed now */}
+      {/* <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[800] flex bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-1 rounded-full shadow-lg border border-gray-200 dark:border-zinc-800">
         <button
           onClick={() => setUserTypeView('players')}
           className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${
             userTypeView === 'players' 
-              ? 'bg-blue-600 text-white shadow-sm' 
+              ? 'text-white shadow-sm' 
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800'
           }`}
+          style={userTypeView === 'players' ? { backgroundColor: '#E17827' } : {}}
         >
           Players
         </button>
@@ -146,32 +148,31 @@ function App() {
           onClick={() => setUserTypeView('coaches')}
           className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${
             userTypeView === 'coaches' 
-              ? 'bg-emerald-600 text-white shadow-sm' 
+              ? 'text-white shadow-sm' 
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800'
           }`}
+          style={userTypeView === 'coaches' ? { backgroundColor: '#00B0F0' } : {}}
         >
           Coaches
         </button>
-      </div>
+      </div> */}
         
       <FilterPanel 
         filters={filters}
         onFilterChange={setFilters}
       />
 
-      {userTypeView === 'players' ? (
-        <PlayerCard 
-          player={selectedPlayer}
-          onClose={() => setSelectedPlayer(null)}
-          isConnected={selectedPlayer ? connectedPlayerIds.has(selectedPlayer.id) : false}
-          onConnect={handleConnect}
-        />
-      ) : (
-        <CoachCard 
-          coach={selectedCoach}
-          onClose={() => setSelectedCoach(null)}
-        />
-      )}
+      {/* Players only - Coaches commented out */}
+      <PlayerCard 
+        player={selectedPlayer}
+        onClose={() => setSelectedPlayer(null)}
+        isConnected={selectedPlayer ? connectedPlayerIds.has(selectedPlayer.id) : false}
+        onConnect={handleConnect}
+      />
+      {/* <CoachCard 
+        coach={selectedCoach}
+        onClose={() => setSelectedCoach(null)}
+      /> */}
 
       {/* Loading / Count Indicator */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-white/90 dark:bg-zinc-900/90 backdrop-blur px-4 py-2 rounded-full shadow-lg border border-gray-200 dark:border-zinc-800 text-xs font-medium text-gray-500 pointer-events-none flex items-center gap-2">
