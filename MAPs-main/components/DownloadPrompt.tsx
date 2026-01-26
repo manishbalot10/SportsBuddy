@@ -6,10 +6,24 @@ interface DownloadPromptProps {
   isOpen: boolean;
   onClose: () => void;
   playerName?: string;
+  profileUrl?: string;
 }
 
-export const DownloadPrompt: React.FC<DownloadPromptProps> = ({ isOpen, onClose, playerName }) => {
+export const DownloadPrompt: React.FC<DownloadPromptProps> = ({ isOpen, onClose, playerName, profileUrl }) => {
   if (!isOpen) return null;
+
+  // Build app store URLs with profile URL as parameter
+  const buildAppStoreUrl = (store: 'ios' | 'android') => {
+    const baseUrl = store === 'ios' 
+      ? 'https://apps.apple.com/app/sportsbuddy'
+      : 'https://play.google.com/store/apps/details?id=com.sportsbuddy';
+    
+    if (profileUrl) {
+      const separator = baseUrl.includes('?') ? '&' : '?';
+      return `${baseUrl}${separator}redirect=${encodeURIComponent(profileUrl)}`;
+    }
+    return baseUrl;
+  };
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -45,25 +59,36 @@ export const DownloadPrompt: React.FC<DownloadPromptProps> = ({ isOpen, onClose,
             
             <div className="space-y-3">
                 <a 
-                    href="https://apps.apple.com" 
+                    href={buildAppStoreUrl('ios')} 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="flex items-center justify-center gap-3 w-full bg-black text-white py-3 rounded-xl font-semibold hover:bg-gray-800 transition-colors"
-                    onClick={() => trackEvent('download_click', { store: 'app_store' })}
+                    onClick={() => trackEvent('download_click', { store: 'app_store', profileUrl })}
                 >
                     <Apple size={24} />
                     <span>App Store</span>
                 </a>
                 <a 
-                    href="https://play.google.com" 
+                    href={buildAppStoreUrl('android')} 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="flex items-center justify-center gap-3 w-full bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-white py-3 rounded-xl font-semibold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
-                    onClick={() => trackEvent('download_click', { store: 'google_play' })}
+                    onClick={() => trackEvent('download_click', { store: 'google_play', profileUrl })}
                 >
                     <Smartphone size={24} className="text-green-600" />
                     <span>Google Play</span>
                 </a>
+                {profileUrl && (
+                  <a 
+                      href={profileUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="flex items-center justify-center gap-3 w-full bg-[#E17827] text-white py-3 rounded-xl font-semibold hover:bg-[#d16a1f] transition-colors"
+                      onClick={() => trackEvent('profile_link_click', { profileUrl })}
+                  >
+                      <span>View Profile</span>
+                  </a>
+                )}
             </div>
         </div>
       </div>

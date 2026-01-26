@@ -21,6 +21,7 @@ function App() {
   // const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null); // Commented out - not needed now
   const [connectedPlayerIds, setConnectedPlayerIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
+  const [playersWithinDistance, setPlayersWithinDistance] = useState(0);
   
   // Initial Filters
   const [filters, setFilters] = useState<FilterState>({
@@ -31,7 +32,7 @@ function App() {
       Advanced: true,
       Professional: true
     },
-    maxDistance: 50 // km
+    maxDistance: 5 // km - default to 5km for better local discovery
   });
 
   // Fetch Data from API
@@ -51,6 +52,10 @@ function App() {
           params.append('sport', filters.sport);
         }
 
+        if (filters.userType && filters.userType !== 'all') {
+          params.append('role', filters.userType === 'players' ? 'player' : 'coach');
+        }
+
         const response = await fetch(`http://localhost:8080/api/users/nearby?${params.toString()}`);
         const data = await response.json();
         // API loaded
@@ -68,7 +73,7 @@ function App() {
 
     const debounceFetch = setTimeout(fetchPlayers, 100);
     return () => clearTimeout(debounceFetch);
-  }, [filters.sport, filters.maxDistance]); // Refetch when API-relevant filters change
+  }, [filters.sport, filters.maxDistance, filters.userType]); // Refetch when API-relevant filters change
 
   // WebSocket removed - Java backend uses REST API only
   // Real-time updates can be added later via polling or Server-Sent Events
@@ -116,11 +121,12 @@ function App() {
         {USE_SCALABLE_MAP ? (
           <ScalableMap 
             onPlayerSelect={setSelectedPlayer}
-            onTotalChange={(total) => setFilteredPlayers(prev => 
-              prev.length !== total ? Array(total).fill({} as Player) : prev
-            )}
+            onMapClick={() => setSelectedPlayer(null)}
+            onTotalChange={(total) => setPlayersWithinDistance(total)}
             sport={filters.sport}
             viewMode={viewMode}
+            maxDistance={filters.maxDistance}
+            userType={filters.userType}
           />
         ) : (
           <Map 
@@ -160,6 +166,8 @@ function App() {
       <FilterPanel 
         filters={filters}
         onFilterChange={setFilters}
+        playerCount={USE_SCALABLE_MAP ? playersWithinDistance : filteredPlayers.length}
+        isLoading={isLoading}
       />
 
       {/* Players only - Coaches commented out */}
@@ -174,11 +182,6 @@ function App() {
         onClose={() => setSelectedCoach(null)}
       /> */}
 
-      {/* Loading / Count Indicator */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-white/90 dark:bg-zinc-900/90 backdrop-blur px-4 py-2 rounded-full shadow-lg border border-gray-200 dark:border-zinc-800 text-xs font-medium text-gray-500 pointer-events-none flex items-center gap-2">
-        {isLoading && <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>}
-        Showing {filteredPlayers.length} players nearby
-      </div>
     </div>
   );
 }

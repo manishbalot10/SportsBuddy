@@ -62,6 +62,12 @@ public class StapuboxService {
                     secondarySports = (List<String>) item.get("secondarySports");
                 }
                 
+                // Parse profileUrl
+                String profileUrl = null;
+                if (item.containsKey("profileUrl") && item.get("profileUrl") != null) {
+                    profileUrl = (String) item.get("profileUrl");
+                }
+                
                 allPlayers.add(Player.builder()
                     .id(((Number) item.get("id")).longValue())
                     .name((String) item.get("name"))
@@ -71,6 +77,8 @@ public class StapuboxService {
                     .latitude(((Number) item.get("latitude")).doubleValue())
                     .longitude(((Number) item.get("longitude")).doubleValue())
                     .avatar("https://ui-avatars.com/api/?name=" + ((String) item.get("name")).replace(" ", "+") + "&background=random")
+                    .role((String) item.get("role"))
+                    .deepLink(profileUrl)
                     .primarySports(primarySports)
                     .secondarySports(secondarySports)
                     .distanceKm(0.0)
@@ -87,7 +95,7 @@ public class StapuboxService {
      * Fetch nearby players from Stapubox API
      * PLACEHOLDER: Replace with actual Stapubox API call when available
      */
-    public NearbyPlayersResponse getNearbyPlayers(Double lat, Double lng, Double radius, String sport, Integer limit) {
+    public NearbyPlayersResponse getNearbyPlayers(Double lat, Double lng, Double radius, String sport, String role, Integer limit) {
         // Use loaded players from JSON file
         List<Player> nearbyPlayers = new ArrayList<>();
         
@@ -111,6 +119,13 @@ public class StapuboxService {
                     if (!matchesSport) continue;
                 }
                 
+                // Filter by role if specified
+                if (role != null && !role.isEmpty()) {
+                    if (player.getRole() == null || !player.getRole().equalsIgnoreCase(role)) {
+                        continue;
+                    }
+                }
+                
                 // Clone player and set distance
                 Player playerWithDistance = Player.builder()
                     .id(player.getId())
@@ -121,6 +136,7 @@ public class StapuboxService {
                     .latitude(player.getLatitude())
                     .longitude(player.getLongitude())
                     .avatar(player.getAvatar())
+                    .role(player.getRole())
                     .primarySports(player.getPrimarySports())
                     .secondarySports(player.getSecondarySports())
                     .distanceKm(Math.round(distance * 10.0) / 10.0)
@@ -197,11 +213,15 @@ public class StapuboxService {
     /**
      * Get all players within a viewport for clustering.
      * Now uses REAL data from people_india_sports.json
+     * 
+     * NOTE: Distance filtering is now handled client-side for visual indicator mode.
+     * All players in viewport are returned; client applies opacity based on distance.
      */
     public List<Player> getAllPlayersForViewport(
             Double minLat, Double maxLat,
             Double minLng, Double maxLng,
-            String sport) {
+            String sport, String role,
+            Double userLat, Double userLng, Double maxDistance) {
         
         List<Player> result = new ArrayList<>();
         for (Player p : allPlayers) {
@@ -209,11 +229,31 @@ public class StapuboxService {
             if (p.getLatitude() >= minLat && p.getLatitude() <= maxLat &&
                 p.getLongitude() >= minLng && p.getLongitude() <= maxLng) {
                 
+                // Distance filtering removed - now handled client-side for visual indicator mode
+                // All players in viewport are returned; client will style based on distance
+                
                 // Filter by sport if specified
-                if (sport != null && !sport.isEmpty() && !sport.equalsIgnoreCase("All") 
-                    && !p.getSport().equalsIgnoreCase(sport)) {
-                    continue;
+                if (sport != null && !sport.isEmpty() && !sport.equalsIgnoreCase("All")) {
+                    // Check primary sports
+                    boolean matchesSport = p.getSport().equalsIgnoreCase(sport);
+                    if (!matchesSport && p.getPrimarySports() != null) {
+                        for (Player.PrimarySport ps : p.getPrimarySports()) {
+                            if (ps.getSport().equalsIgnoreCase(sport)) {
+                                matchesSport = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!matchesSport) continue;
                 }
+                
+                // Filter by role if specified
+                if (role != null && !role.isEmpty()) {
+                    if (p.getRole() == null || !p.getRole().equalsIgnoreCase(role)) {
+                        continue;
+                    }
+                }
+                
                 result.add(p);
             }
         }

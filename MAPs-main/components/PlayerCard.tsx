@@ -63,7 +63,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose, isConne
       >
         {/* Logged-Out Player Card - Based on Figma Design */}
         <div 
-          className="flex flex-col justify-center items-center"
+          className="flex flex-col justify-center items-center relative"
           style={{
             width: '378.08px',
             height: '171.2px',
@@ -170,6 +170,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose, isConne
           isOpen={showDownloadPrompt} 
           onClose={() => setShowDownloadPrompt(false)} 
           playerName={displayPlayer.name}
+          profileUrl={displayPlayer.profileUrl || displayPlayer.deepLink}
         />
       )}
     </>

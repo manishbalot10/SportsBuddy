@@ -41,9 +41,10 @@ public class PlayerController {
             @RequestParam Double lng,
             @RequestParam(defaultValue = "50") Double radius,
             @RequestParam(required = false) String sport,
+            @RequestParam(required = false) String role,
             @RequestParam(defaultValue = "100") Integer limit
     ) {
-        NearbyPlayersResponse response = stapuboxService.getNearbyPlayers(lat, lng, radius, sport, limit);
+        NearbyPlayersResponse response = stapuboxService.getNearbyPlayers(lat, lng, radius, sport, role, limit);
         return ResponseEntity.ok(response);
     }
 
@@ -94,11 +95,15 @@ public class PlayerController {
             @RequestParam Double minLng,
             @RequestParam Double maxLng,
             @RequestParam(defaultValue = "11") Integer zoom,
-            @RequestParam(required = false) String sport
+            @RequestParam(required = false) String sport,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Double userLat,
+            @RequestParam(required = false) Double userLng,
+            @RequestParam(required = false) Double maxDistance
     ) {
         // Get all players from data source (in production, this would query with bounds)
         List<Player> allPlayers = stapuboxService.getAllPlayersForViewport(
-            minLat, maxLat, minLng, maxLng, sport
+            minLat, maxLat, minLng, maxLng, sport, role, userLat, userLng, maxDistance
         );
         
         // Filter by viewport using geohash - O(n/cells) instead of O(n)

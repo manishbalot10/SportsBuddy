@@ -17,9 +17,14 @@ public class Player {
     private String sport;
     private String level;
     private String city;
+    private String state;
+    private Integer age;
+    private String gender;
     private Double latitude;
     private Double longitude;
     private String avatar;
+    private String role;
+    private String deepLink;
     
     @JsonProperty("distance_km")
     private Double distanceKm;

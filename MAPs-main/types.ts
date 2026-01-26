@@ -31,12 +31,16 @@ export interface Player {
   avatar: string;
   distance_km?: number;
   is_new?: boolean;
+  role?: 'player' | 'coach';
+  profileUrl?: string; // Dynamic URL for player profile/connect
+  deepLink?: string; // Deep link for app navigation
 }
 
 export interface FilterState {
   sport: SportType | 'All';
   levels: Record<SkillLevel, boolean>;
   maxDistance: number; // in km
+  userType?: 'all' | 'players' | 'coaches';
 }
 
 export interface UserLocation {
