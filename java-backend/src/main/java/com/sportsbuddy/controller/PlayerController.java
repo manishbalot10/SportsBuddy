@@ -5,7 +5,10 @@ import com.sportsbuddy.model.NearbyPlayersResponse;
 import com.sportsbuddy.model.ClusterResponse;
 import com.sportsbuddy.service.StapuboxService;
 import com.sportsbuddy.util.SpatialCluster;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,7 +16,8 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = {"http://localhost:3002", "http://localhost:3003", "http://localhost:5173", "http://127.0.0.1:3002", "http://127.0.0.1:3003"})
+@Validated
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3002", "http://localhost:3003", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:3002", "http://127.0.0.1:3003"})
 public class PlayerController {
 
     private final StapuboxService stapuboxService;
@@ -37,12 +41,12 @@ public class PlayerController {
      */
     @GetMapping("/users/nearby")
     public ResponseEntity<NearbyPlayersResponse> getNearbyPlayers(
-            @RequestParam Double lat,
-            @RequestParam Double lng,
-            @RequestParam(defaultValue = "50") Double radius,
+            @RequestParam @Min(-90) @Max(90) Double lat,
+            @RequestParam @Min(-180) @Max(180) Double lng,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) Double radius,
             @RequestParam(required = false) String sport,
             @RequestParam(required = false) String role,
-            @RequestParam(defaultValue = "100") Integer limit
+            @RequestParam(defaultValue = "100") @Min(1) @Max(500) Integer limit
     ) {
         NearbyPlayersResponse response = stapuboxService.getNearbyPlayers(lat, lng, radius, sport, role, limit);
         return ResponseEntity.ok(response);

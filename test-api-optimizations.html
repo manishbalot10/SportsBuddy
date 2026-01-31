@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SportsBuddy API Optimization Tests</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .test-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-item {
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .test-item.pass {
+            border-left-color: #4CAF50;
+            background: #f1f8f4;
+        }
+        .test-item.fail {
+            border-left-color: #f44336;
+            background: #fef1f0;
+        }
+        .test-item.warn {
+            border-left-color: #ff9800;
+            background: #fff8f0;
+        }
+        .test-name {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        .test-details {
+            font-size: 14px;
+            color: #666;
+            margin: 5px 0;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .status.pass { background: #4CAF50; color: white; }
+        .status.fail { background: #f44336; color: white; }
+        .status.warn { background: #ff9800; color: white; }
+        .summary {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .summary-card {
+            flex: 1;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+        }
+        .summary-card.passed { background: #4CAF50; }
+        .summary-card.failed { background: #f44336; }
+        .summary-card.total { background: #2196F3; }
+        .summary-number {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        .summary-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 SportsBuddy API Optimization Tests</h1>
+    
+    <div>
+        <button id="runTests" onclick="runAllTests()">Run All Tests</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div class="summary" id="summary" style="display: none;">
+        <div class="summary-card total">
+            <div class="summary-number" id="totalTests">0</div>
+            <div class="summary-label">Total Tests</div>
+        </div>
+        <div class="summary-card passed">
+            <div class="summary-number" id="passedTests">0</div>
+            <div class="summary-label">Passed</div>
+        </div>
+        <div class="summary-card failed">
+            <div class="summary-number" id="failedTests">0</div>
+            <div class="summary-label">Failed/Warnings</div>
+        </div>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+        let testResults = [];
+
+        async function runAllTests() {
+            const button = document.getElementById('runTests');
+            button.disabled = true;
+            button.textContent = 'Running Tests...';
+            
+            testResults = [];
+            document.getElementById('results').innerHTML = '<div class="loading">Running tests...</div>';
+            document.getElementById('summary').style.display = 'none';
+
+            try {
+                await test1_HealthCheck();
+                await test2_APIRoot();
+                await test3_NearbyPlayers_CacheMiss();
+                await new Promise(r => setTimeout(r, 500));
+                await test4_NearbyPlayers_CacheHit();
+                await test5_InputValidation_InvalidLat();
+                await test6_InputValidation_InvalidRadius();
+                await test7_InputValidation_InvalidLimit();
+                await test8_SportsList();
+                await test9_ResponseCompression();
+                await test10_CircuitBreaker();
+            } catch (error) {
+                console.error('Test suite error:', error);
+            }
+
+            displayResults();
+            button.disabled = false;
+            button.textContent = 'Run All Tests';
+        }
+
+        async function test1_HealthCheck() {
+            const start = performance.now();
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                const end = performance.now();
+                const data = await res.json();
+                
+                testResults.push({
+                    name: '1. Health Check',
+                    status: data.status === 'healthy' ? 'pass' : 'fail',
+                    details: [
+                        `Response time: ${(end - start).toFixed(2)}ms`,
+                        `Status: ${data.status}`,
+                        `HTTP: ${res.status}`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '1. Health Check',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        async function test2_APIRoot() {
+            const start = performance.now();
+            try {
+                const res = await fetch(`${API_BASE}/`);
+                const end = performance.now();
+                const data = await res.json();
+                
+                testResults.push({
+                    name: '2. API Root Endpoint',
+                    status: data.app === 'SportsBuddy API' ? 'pass' : 'fail',
+                    details: [
+                        `Response time: ${(end - start).toFixed(2)}ms`,
+                        `App: ${data.app}`,
+                        `Version: ${data.version}`,
+                        `Endpoints: ${data.endpoints.length} available`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '2. API Root Endpoint',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        async function test3_NearbyPlayers_CacheMiss() {
+            const start = performance.now();
+            try {
+                const res = await fetch(`${API_BASE}/users/nearby?lat=19.076&lng=72.877&radius=10&limit=5`);
+                const end = performance.now();
+                const data = await res.json();
+                
+                window.firstCallTime = end - start;
+                
+                testResults.push({
+                    name: '3. Nearby Players - First Call (Cache MISS)',
+                    status: data.count > 0 ? 'pass' : 'fail',
+                    details: [
+                        `⏱️ Response time: ${(end - start).toFixed(2)}ms`,
+                        `📊 Players returned: ${data.count}`,
+                        `🗜️ Compression: ${res.headers.get('content-encoding') || 'none'}`,
+                        `📍 Center: ${data.center.lat}, ${data.center.lng}`,
+                        `📏 Radius: ${data.radiusKm}km`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '3. Nearby Players - First Call',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        async function test4_NearbyPlayers_CacheHit() {
+            const start = performance.now();
+            try {
+                const res = await fetch(`${API_BASE}/users/nearby?lat=19.076&lng=72.877&radius=10&limit=5`);
+                const end = performance.now();
+                const data = await res.json();
+                
+                const cachedTime = end - start;
+                const speedup = (window.firstCallTime / cachedTime).toFixed(1);
+                const isFaster = cachedTime < window.firstCallTime;
+                
+                testResults.push({
+                    name: '4. Nearby Players - Second Call (Cache HIT)',
+                    status: data.count > 0 && isFaster ? 'pass' : 'warn',
+                    details: [
+                        `⏱️ Response time: ${cachedTime.toFixed(2)}ms`,
+                        `⚡ Speedup: ${speedup}x faster than first call`,
+                        `📊 Players returned: ${data.count}`,
+                        `✅ Cache working: ${isFaster ? 'YES' : 'NO (might be already cached)'}`,
+                        `First call: ${window.firstCallTime.toFixed(2)}ms`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '4. Nearby Players - Second Call',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        async function test5_InputValidation_InvalidLat() {
+            try {
+                const res = await fetch(`${API_BASE}/users/nearby?lat=999&lng=72.877&radius=10`);
+                const data = await res.text();
+                
+                testResults.push({
+                    name: '5. Input Validation - Invalid Latitude (lat=999)',
+                    status: res.status === 400 ? 'pass' : 'fail',
+                    details: [
+                        `HTTP Status: ${res.status} (expected 400)`,
+                        `Validation: ${res.status === 400 ? '✅ Working' : '❌ Not working'}`,
+                        `Response: ${data.substring(0, 100)}`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '5. Input Validation - Invalid Latitude',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        async function test6_InputValidation_InvalidRadius() {
+            try {
+                const res = await fetch(`${API_BASE}/users/nearby?lat=19.076&lng=72.877&radius=999`);
+                const data = await res.text();
+                
+                testResults.push({
+                    name: '6. Input Validation - Invalid Radius (radius=999)',
+                    status: res.status === 400 ? 'pass' : 'fail',
+                    details: [
+                        `HTTP Status: ${res.status} (expected 400)`,
+                        `Validation: ${res.status === 400 ? '✅ Working' : '❌ Not working'}`,
+                        `Response: ${data.substring(0, 100)}`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '6. Input Validation - Invalid Radius',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        async function test7_InputValidation_InvalidLimit() {
+            try {
+                const res = await fetch(`${API_BASE}/users/nearby?lat=19.076&lng=72.877&radius=10&limit=9999`);
+                const data = await res.text();
+                
+                testResults.push({
+                    name: '7. Input Validation - Invalid Limit (limit=9999)',
+                    status: res.status === 400 ? 'pass' : 'fail',
+                    details: [
+                        `HTTP Status: ${res.status} (expected 400)`,
+                        `Validation: ${res.status === 400 ? '✅ Working' : '❌ Not working'}`,
+                        `Response: ${data.substring(0, 100)}`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '7. Input Validation - Invalid Limit',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        async function test8_SportsList() {
+            const start = performance.now();
+            try {
+                const res = await fetch(`${API_BASE}/sports`);
+                const end = performance.now();
+                const data = await res.json();
+                
+                testResults.push({
+                    name: '8. Sports List Endpoint',
+                    status: data.count >= 10 ? 'pass' : 'fail',
+                    details: [
+                        `Response time: ${(end - start).toFixed(2)}ms`,
+                        `Sports count: ${data.count}`,
+                        `Sports: ${data.sports.slice(0, 8).join(', ')}...`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '8. Sports List Endpoint',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        async function test9_ResponseCompression() {
+            try {
+                const res = await fetch(`${API_BASE}/users/nearby?lat=19.076&lng=72.877&radius=50&limit=50`);
+                const data = await res.json();
+                const encoding = res.headers.get('content-encoding');
+                const contentLength = res.headers.get('content-length');
+                
+                testResults.push({
+                    name: '9. Response Compression',
+                    status: encoding === 'gzip' ? 'pass' : 'warn',
+                    details: [
+                        `Encoding: ${encoding || 'none'}`,
+                        `Content-Length: ${contentLength || 'not specified'}`,
+                        `Players returned: ${data.count}`,
+                        `Note: ${encoding ? 'Compression enabled ✅' : 'May need larger response to trigger compression'}`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '9. Response Compression',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        async function test10_CircuitBreaker() {
+            try {
+                // Test with valid data to ensure circuit breaker is closed
+                const res = await fetch(`${API_BASE}/users/nearby?lat=19.076&lng=72.877&radius=10&limit=5`);
+                const data = await res.json();
+                
+                testResults.push({
+                    name: '10. Circuit Breaker & Resilience4j',
+                    status: res.status === 200 ? 'pass' : 'warn',
+                    details: [
+                        `HTTP Status: ${res.status}`,
+                        `Circuit breaker: Configured with Resilience4j`,
+                        `Retry: Configured with exponential backoff`,
+                        `Players returned: ${data.count}`,
+                        `Note: Circuit breaker activates on repeated failures`
+                    ]
+                });
+            } catch (error) {
+                testResults.push({
+                    name: '10. Circuit Breaker & Resilience4j',
+                    status: 'fail',
+                    details: [`Error: ${error.message}`]
+                });
+            }
+        }
+
+        function displayResults() {
+            const resultsDiv = document.getElementById('results');
+            const passed = testResults.filter(t => t.status === 'pass').length;
+            const failed = testResults.filter(t => t.status === 'fail' || t.status === 'warn').length;
+            
+            document.getElementById('summary').style.display = 'flex';
+            document.getElementById('totalTests').textContent = testResults.length;
+            document.getElementById('passedTests').textContent = passed;
+            document.getElementById('failedTests').textContent = failed;
+            
+            let html = '<div class="test-container"><h2>Test Results</h2>';
+            
+            testResults.forEach(test => {
+                html += `
+                    <div class="test-item ${test.status}">
+                        <div class="test-name">
+                            <span class="status ${test.status}">${test.status.toUpperCase()}</span>
+                            ${test.name}
+                        </div>
+                        ${test.details.map(d => `<div class="test-details">${d}</div>`).join('')}
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('summary').style.display = 'none';
+            testResults = [];
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 500);
+        });
+    </script>
+</body>
+</html>

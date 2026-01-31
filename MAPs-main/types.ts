@@ -3,7 +3,8 @@ export type SportType =
   | 'Kabaddi' | 'Wrestling' | 'Boxing' | 'Shooting' | 'Archery' | 'Athletics'
   | 'Swimming' | 'Volleyball' | 'Basketball' | 'Chess' | 'Carrom' | 'Kho Kho'
   | 'Squash' | 'Golf' | 'Cycling' | 'Weightlifting' | 'Gymnastics' | 'Martial Arts'
-  | 'Yoga' | 'Running' | 'Marathon' | 'Throwball' | 'Handball' | 'Baseball';
+  | 'Yoga' | 'Running' | 'Marathon' | 'Throwball' | 'Handball' | 'Baseball'
+  | 'Gym' | 'Padel';
 
 export type SkillLevel = 'Beginner' | 'Intermediate' | 'Advanced' | 'Professional';
 

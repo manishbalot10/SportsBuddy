@@ -40,11 +40,19 @@ Server runs on `http://localhost:8080`
 Edit `src/main/resources/application.properties`:
 
 ```properties
-# Replace with actual Stapubox API details
-stapubox.api.base-url=https://api.stapubox.com/v1
-stapubox.api.key=YOUR_API_KEY_HERE
+stapubox.api.base-url=https://practise.stapubox.com
+stapubox.api.endpoint=/sportfolio/getMapView
 ```
 
 ## Current Status
 
-⚠️ **Using Mock Data** - The service returns placeholder data until Stapubox API credentials are configured.
+✅ **Using Real Stapubox API** - The service fetches real player data from the Stapubox API.
+
+### API Endpoints Status
+
+| Endpoint | Data Source |
+|----------|-------------|
+| `/api/users/nearby` | ✅ Real Stapubox API |
+| `/api/users/viewport` | ✅ Real Stapubox API |
+| `/api/sports` | Static list (API doesn't provide) |
+| `/api/users/{id}` | ❌ Not supported (use deep links) |

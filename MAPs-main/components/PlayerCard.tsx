@@ -143,25 +143,48 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose, isConne
             </div>
           </div>
 
-          {/* Connect Button - Triggers Download Prompt */}
-          <button
-            onClick={() => setShowDownloadPrompt(true)}
-            className="flex justify-center items-center w-full py-3 rounded-[10px] transition-all active:scale-[0.98]"
-            style={{
-              backgroundColor: '#E17827',
-              fontFamily: "'Source Sans 3', sans-serif"
-            }}
-          >
-            <span
-              className="font-semibold"
+          {/* Connect Button - Opens DeepLink or Shows Download Prompt */}
+          {displayPlayer.deepLink || displayPlayer.profileUrl ? (
+            <a
+              href={displayPlayer.deepLink || displayPlayer.profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex justify-center items-center w-full py-3 rounded-[10px] transition-all active:scale-[0.98] no-underline"
               style={{
-                fontSize: '20px',
-                color: '#FAF9F6',
+                backgroundColor: '#E17827',
+                fontFamily: "'Source Sans 3', sans-serif"
               }}
             >
-              Connect
-            </span>
-          </button>
+              <span
+                className="font-semibold"
+                style={{
+                  fontSize: '20px',
+                  color: '#FAF9F6',
+                }}
+              >
+                Connect
+              </span>
+            </a>
+          ) : (
+            <button
+              onClick={() => setShowDownloadPrompt(true)}
+              className="flex justify-center items-center w-full py-3 rounded-[10px] transition-all active:scale-[0.98]"
+              style={{
+                backgroundColor: '#E17827',
+                fontFamily: "'Source Sans 3', sans-serif"
+              }}
+            >
+              <span
+                className="font-semibold"
+                style={{
+                  fontSize: '20px',
+                  color: '#FAF9F6',
+                }}
+              >
+                Connect
+              </span>
+            </button>
+          )}
         </div>
       </div>
 

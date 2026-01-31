@@ -147,6 +147,9 @@ const SPORT_ICONS: Record<string, string> = {
   Throwball: '🏐',
   Handball: '🤾',
   Baseball: '⚾',
+  // Additional sports from Stapubox API
+  Gym: '🏋️',
+  Padel: '🎾',
 };
 
 // Calculate distance between two coordinates using Haversine formula
@@ -162,11 +165,21 @@ const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c; // Distance in km
 };
 
+// Normalize sport name to title case for lookup
+const normalizeSportName = (sport: string): string => {
+  if (!sport) return 'Cricket';
+  // Handle "table tennis" -> "Table Tennis", "gym" -> "Gym", etc.
+  return sport.split(' ').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  ).join(' ');
+};
+
 // Create custom icons dynamically with sport emoji
 const createCustomIcon = (sport: string, userType: 'player' | 'coach' = 'player', opacity: number = 1.0) => {
-  const config = SPORTS_CONFIG[sport as keyof typeof SPORTS_CONFIG] || SPORTS_CONFIG['Cricket'];
+  const normalizedSport = normalizeSportName(sport);
+  const config = SPORTS_CONFIG[normalizedSport as keyof typeof SPORTS_CONFIG] || SPORTS_CONFIG['Cricket'];
   const colorHex = config.colorHex;
-  const sportIcon = SPORT_ICONS[sport] || '🏅';
+  const sportIcon = SPORT_ICONS[normalizedSport] || '🏅';
   const borderColor = userType === 'coach' ? 'black' : 'white';
   
   const html = `

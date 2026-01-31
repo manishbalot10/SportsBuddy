@@ -84,6 +84,9 @@ export const SPORTS_CONFIG: Record<SportType, { color: string; icon: any; colorH
   Throwball: { color: 'bg-pink-600', colorHex: '#DB2777', icon: Activity },
   Handball: { color: 'bg-purple-600', colorHex: '#7C3AED', icon: Activity },
   Baseball: { color: 'bg-orange-500', colorHex: '#F97316', icon: Activity },
+  // Additional sports from Stapubox API
+  Gym: { color: 'bg-orange-500', colorHex: '#F97316', icon: Dumbbell },
+  Padel: { color: 'bg-teal-600', colorHex: '#0D9488', icon: Activity },
 };
 
 // Mock User Location (Center of Mumbai for demo)

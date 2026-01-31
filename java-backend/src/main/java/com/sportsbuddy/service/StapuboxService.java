@@ -1,159 +1,428 @@
 package com.sportsbuddy.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sportsbuddy.model.Player;
 import com.sportsbuddy.model.NearbyPlayersResponse;
+import com.sportsbuddy.model.StapuboxMapViewRequest;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-
-import jakarta.annotation.PostConstruct;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 
+@Slf4j
 @Service
-@SuppressWarnings("unused")
 public class StapuboxService {
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
     
-    // Loaded from JSON file
-    private List<Player> allPlayers = new ArrayList<>();
+    private final ConcurrentHashMap<String, CompletableFuture<NearbyPlayersResponse>> inFlightRequests = new ConcurrentHashMap<>();
 
     @Value("${stapubox.api.base-url}")
     private String stapuboxBaseUrl;
 
-    @Value("${stapubox.api.key}")
-    private String apiKey;
+    @Value("${stapubox.api.endpoint}")
+    private String apiEndpoint;
 
     public StapuboxService(WebClient.Builder webClientBuilder, ObjectMapper objectMapper) {
         this.webClient = webClientBuilder.build();
         this.objectMapper = objectMapper;
     }
     
-    @PostConstruct
-    public void loadPlayersFromJson() {
-        try {
-            ClassPathResource resource = new ClassPathResource("people_india_sports.json");
-            InputStream inputStream = resource.getInputStream();
-            List<Map<String, Object>> rawData = objectMapper.readValue(inputStream, new TypeReference<>() {});
-            
-            for (Map<String, Object> item : rawData) {
-                // Parse primarySports
-                List<Player.PrimarySport> primarySports = null;
-                if (item.containsKey("primarySports") && item.get("primarySports") != null) {
-                    List<Map<String, Object>> primarySportsRaw = (List<Map<String, Object>>) item.get("primarySports");
-                    primarySports = new ArrayList<>();
-                    for (Map<String, Object> ps : primarySportsRaw) {
-                        primarySports.add(new Player.PrimarySport(
-                            (String) ps.get("sport"),
-                            ((Number) ps.get("level")).intValue()
-                        ));
-                    }
-                }
-                
-                // Parse secondarySports
-                List<String> secondarySports = null;
-                if (item.containsKey("secondarySports") && item.get("secondarySports") != null) {
-                    secondarySports = (List<String>) item.get("secondarySports");
-                }
-                
-                // Parse profileUrl
-                String profileUrl = null;
-                if (item.containsKey("profileUrl") && item.get("profileUrl") != null) {
-                    profileUrl = (String) item.get("profileUrl");
-                }
-                
-                allPlayers.add(Player.builder()
-                    .id(((Number) item.get("id")).longValue())
-                    .name((String) item.get("name"))
-                    .sport((String) item.get("sport"))
-                    .level((String) item.get("level"))
-                    .city((String) item.get("city"))
-                    .latitude(((Number) item.get("latitude")).doubleValue())
-                    .longitude(((Number) item.get("longitude")).doubleValue())
-                    .avatar("https://ui-avatars.com/api/?name=" + ((String) item.get("name")).replace(" ", "+") + "&background=random")
-                    .role((String) item.get("role"))
-                    .deepLink(profileUrl)
-                    .primarySports(primarySports)
-                    .secondarySports(secondarySports)
-                    .distanceKm(0.0)
-                    .build());
-            }
-            System.out.println("Loaded " + allPlayers.size() + " players from JSON");
-        } catch (IOException e) {
-            System.err.println("Failed to load players JSON: " + e.getMessage());
-            e.printStackTrace();
-        }
+    private String buildCacheKey(Double lat, Double lng, Double radius, String sport) {
+        int latBucket = (int) (lat * 10);
+        int lngBucket = (int) (lng * 10);
+        int radiusBucket = (int) (radius / 5) * 5;
+        return String.format("%d_%d_%d_%s", latBucket, lngBucket, radiusBucket, sport != null ? sport : "all");
     }
 
     /**
-     * Fetch nearby players from Stapubox API
-     * PLACEHOLDER: Replace with actual Stapubox API call when available
+     * Fetch nearby players from Stapubox API with caching and circuit breaker
      */
+    @Cacheable(value = "nearbyPlayers", key = "#lat + '_' + #lng + '_' + #radius + '_' + #sport")
+    @CircuitBreaker(name = "stapubox", fallbackMethod = "fallbackNearbyPlayers")
+    @Retry(name = "stapubox")
     public NearbyPlayersResponse getNearbyPlayers(Double lat, Double lng, Double radius, String sport, String role, Integer limit) {
-        // Use loaded players from JSON file
-        List<Player> nearbyPlayers = new ArrayList<>();
-        
-        for (Player player : allPlayers) {
-            // Calculate distance
-            double distance = calculateDistance(lat, lng, player.getLatitude(), player.getLongitude());
+        try {
+            // Build request
+            StapuboxMapViewRequest.LocationData location = StapuboxMapViewRequest.LocationData.builder()
+                    .type("current")
+                    .lat(lat)
+                    .lng(lng)
+                    .city("") // Can be extracted from reverse geocoding if needed
+                    .state("")
+                    .country("India")
+                    .build();
+
+            // Map role to profile_type
+            String profileType = null;
+            if (role != null && !role.isEmpty()) {
+                profileType = role.equalsIgnoreCase("coach") ? "coach" : "player";
+            }
+
+            // Convert radius from km to meters
+            Integer searchRadiusMeters = (int) (radius * 1000);
+
+            StapuboxMapViewRequest request = StapuboxMapViewRequest.builder()
+                    .playground(true)
+                    .work(false)
+                    .home(false)
+                    .profileType(profileType)
+                    .sportsId(List.of()) // TODO: Map sport name to sports_id if needed
+                    .skill(List.of("beginner", "intermediate", "advanced", "professional"))
+                    .searchRadius(searchRadiusMeters)
+                    .searchRadiusMin(0)
+                    .searchRadiusMax(100000)
+                    .page(1)
+                    .pageSize(limit != null ? limit : 100)
+                    .format("json")
+                    .location(location)
+                    .build();
+
+            // Make API call
+            String apiUrl = stapuboxBaseUrl + apiEndpoint;
             
-            if (distance <= radius) {
-                // Filter by sport if specified
-                if (sport != null && !sport.isEmpty() && !sport.equalsIgnoreCase("All")) {
-                    // Check primary sports
-                    boolean matchesSport = player.getSport().equalsIgnoreCase(sport);
-                    if (!matchesSport && player.getPrimarySports() != null) {
-                        for (Player.PrimarySport ps : player.getPrimarySports()) {
-                            if (ps.getSport().equalsIgnoreCase(sport)) {
-                                matchesSport = true;
-                                break;
+            log.debug("Calling Stapubox API: {}", apiUrl);
+            
+            // Try to get raw response first to see structure
+            String rawResponse;
+            try {
+                rawResponse = webClient.post()
+                        .uri(apiUrl)
+                        .header("Content-Type", "application/json")
+                        .bodyValue(request)
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .block();
+                
+                log.debug("API response received, length: {}", rawResponse != null ? rawResponse.length() : 0);
+            } catch (Exception e) {
+                log.error("Error calling Stapubox API: {}", e.getMessage());
+                throw new RuntimeException("Stapubox API call failed", e);
+            }
+
+            // Parse response - API might return array directly or wrapped object
+            List<Map<String, Object>> profiles = new ArrayList<>();
+            try {
+                if (rawResponse != null) {
+                    Object parsed = objectMapper.readValue(rawResponse, Object.class);
+                    
+                    if (parsed instanceof List) {
+                        // API returns array directly
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> profilesList = (List<Map<String, Object>>) parsed;
+                        profiles = profilesList;
+                        log.debug("API returned array, count: {}", profiles.size());
+                    } else if (parsed instanceof Map) {
+                        // API returns wrapped object
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> responseMap = (Map<String, Object>) parsed;
+                        
+                        // Try different possible structures
+                        if (responseMap.containsKey("data")) {
+                            Object data = responseMap.get("data");
+                            if (data instanceof Map) {
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> dataMap = (Map<String, Object>) data;
+                                if (dataMap.containsKey("profiles")) {
+                                    @SuppressWarnings("unchecked")
+                                    List<Map<String, Object>> profilesList = (List<Map<String, Object>>) dataMap.get("profiles");
+                                    profiles = profilesList;
+                                }
+                            } else if (data instanceof List) {
+                                @SuppressWarnings("unchecked")
+                                List<Map<String, Object>> profilesList = (List<Map<String, Object>>) data;
+                                profiles = profilesList;
+                            }
+                        } else if (responseMap.containsKey("profiles")) {
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> profilesList = (List<Map<String, Object>>) responseMap.get("profiles");
+                            profiles = profilesList;
+                        }
+                        
+                        log.debug("API returned wrapped object, count: {}, status: {}", profiles.size(), responseMap.get("status"));
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error parsing API response: {}", e.getMessage());
+                return createEmptyResponse(lat, lng, radius, sport);
+            }
+
+            if (profiles.isEmpty()) {
+                log.warn("API returned empty profiles list for lat={}, lng={}", lat, lng);
+                return createEmptyResponse(lat, lng, radius, sport);
+            }
+
+            // Convert API response to Player objects
+            List<Player> nearbyPlayers = new ArrayList<>();
+            int convertedCount = 0;
+            int skippedCount = 0;
+            for (Map<String, Object> profile : profiles) {
+                Player player = convertProfileToPlayer(profile, lat, lng);
+                if (player != null) {
+                    convertedCount++;
+                    // Apply sport filter if specified
+                    if (sport != null && !sport.isEmpty() && !sport.equalsIgnoreCase("All")) {
+                        boolean matchesSport = player.getSport() != null && player.getSport().equalsIgnoreCase(sport);
+                        if (!matchesSport && player.getPrimarySports() != null) {
+                            for (Player.PrimarySport ps : player.getPrimarySports()) {
+                                if (ps.getSport().equalsIgnoreCase(sport)) {
+                                    matchesSport = true;
+                                    break;
+                                }
                             }
                         }
+                        if (!matchesSport) {
+                            skippedCount++;
+                            continue;
+                        }
                     }
-                    if (!matchesSport) continue;
+                    nearbyPlayers.add(player);
+                } else {
+                    skippedCount++;
                 }
-                
-                // Filter by role if specified
-                if (role != null && !role.isEmpty()) {
-                    if (player.getRole() == null || !player.getRole().equalsIgnoreCase(role)) {
-                        continue;
-                    }
-                }
-                
-                // Clone player and set distance
-                Player playerWithDistance = Player.builder()
-                    .id(player.getId())
-                    .name(player.getName())
-                    .sport(player.getSport())
-                    .level(player.getLevel())
-                    .city(player.getCity())
-                    .latitude(player.getLatitude())
-                    .longitude(player.getLongitude())
-                    .avatar(player.getAvatar())
-                    .role(player.getRole())
-                    .primarySports(player.getPrimarySports())
-                    .secondarySports(player.getSecondarySports())
-                    .distanceKm(Math.round(distance * 10.0) / 10.0)
+            }
+            log.info("Converted {} profiles, skipped {}, returning {} players", convertedCount, skippedCount, nearbyPlayers.size());
+
+            // Sort by distance
+            nearbyPlayers.sort(Comparator.comparing(Player::getDistanceKm));
+
+            Map<String, Double> center = new HashMap<>();
+            center.put("lat", lat);
+            center.put("lng", lng);
+
+            return NearbyPlayersResponse.builder()
+                    .center(center)
+                    .radiusKm(radius)
+                    .sportFilter(sport)
+                    .users(nearbyPlayers)
+                    .count(nearbyPlayers.size())
                     .build();
+
+        } catch (Exception e) {
+            log.error("Error in getNearbyPlayers: {}", e.getMessage());
+            throw e;
+        }
+    }
+
+    public NearbyPlayersResponse fallbackNearbyPlayers(Double lat, Double lng, Double radius, String sport, String role, Integer limit, Throwable t) {
+        log.warn("Circuit breaker fallback triggered for getNearbyPlayers: {}", t.getMessage());
+        return createEmptyResponse(lat, lng, radius, sport);
+    }
+
+    /**
+     * Convert API profile map to Player object
+     * API Structure: {"Hpid":"...","profilePic":null,"primarySport":["sport1","sport2"],"currentLocation":{"lat":...,"lng":...,"city":"..."}}
+     */
+    private Player convertProfileToPlayer(Map<String, Object> profile, Double userLat, Double userLng) {
+        try {
+            // Extract ID - API uses "Hpid" (hashed profile ID)
+            String hpid = extractString(profile, "Hpid", "hpid", "id", "user_id", "profile_id");
+            Long id = null;
+            if (hpid != null) {
+                // Convert string ID to long (use hash code as fallback)
+                try {
+                    id = (long) hpid.hashCode();
+                } catch (Exception e) {
+                    id = System.currentTimeMillis() % 1000000; // Fallback ID
+                }
+            }
+            
+            // Extract name - API might not have name directly, use Hpid or generate
+            String name = extractString(profile, "name", "username", "full_name", "displayName", "profileName");
+            if (name == null || name.isEmpty()) {
+                name = "Player " + (hpid != null ? hpid.substring(0, Math.min(8, hpid.length())) : "Unknown");
+            }
+            
+            // Extract location from currentLocation object
+            Double lat = null;
+            Double lng = null;
+            String city = null;
+            
+            if (profile.containsKey("currentLocation") && profile.get("currentLocation") instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> location = (Map<String, Object>) profile.get("currentLocation");
+                lat = extractDouble(location, "lat", "latitude");
+                lng = extractDouble(location, "lng", "longitude");
+                city = extractString(location, "city", "location_city");
+            } else {
+                // Fallback: try direct fields
+                lat = extractDouble(profile, "lat", "latitude");
+                lng = extractDouble(profile, "lng", "longitude");
+                city = extractString(profile, "city", "location_city");
+            }
+            
+            if (lat == null || lng == null) {
+                return null; // Skip if no location
+            }
+
+            // Calculate distance
+            double distance = calculateDistance(userLat, userLng, lat, lng);
+
+            // Extract primary sport - API has "primarySport" as array of strings
+            String sport = null;
+            List<Player.PrimarySport> primarySports = null;
+            if (profile.containsKey("primarySport") && profile.get("primarySport") instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> primarySportList = (List<Object>) profile.get("primarySport");
+                if (!primarySportList.isEmpty()) {
+                    // Use first sport as main sport
+                    Object firstSport = primarySportList.get(0);
+                    if (firstSport instanceof String) {
+                        sport = (String) firstSport;
+                    }
                     
-                nearbyPlayers.add(playerWithDistance);
+                    // Convert all to PrimarySport objects
+                    primarySports = new ArrayList<>();
+                    for (Object ps : primarySportList) {
+                        if (ps instanceof String) {
+                            primarySports.add(new Player.PrimarySport((String) ps, 1)); // Default level 1
+                        }
+                    }
+                }
+            }
+            
+            // Fallback: try other field names
+            if (sport == null) {
+                sport = extractString(profile, "sport", "primary_sport", "sports");
+            }
+            
+            String level = extractString(profile, "level", "skill_level", "skill");
+            
+            // Extract avatar
+            String avatar = extractString(profile, "profilePic", "avatar", "profile_picture", "image_url", "picture");
+            if (avatar == null || avatar.isEmpty() || "null".equals(avatar)) {
+                avatar = "https://ui-avatars.com/api/?name=" + 
+                        name.replace(" ", "+") + "&background=random";
+            }
+
+            // Extract role
+            String role = extractString(profile, "role", "profile_type", "type", "profileType");
+
+            // Extract secondary sports - API has "SecondarySport" (capital S)
+            List<String> secondarySports = null;
+            if (profile.containsKey("SecondarySport") && profile.get("SecondarySport") instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> secSports = (List<Object>) profile.get("SecondarySport");
+                secondarySports = new ArrayList<>();
+                for (Object ss : secSports) {
+                    if (ss instanceof String) {
+                        secondarySports.add((String) ss);
+                    }
+                }
+            }
+            // Also try lowercase version
+            if (secondarySports == null && profile.containsKey("secondarySport") && profile.get("secondarySport") instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> secSports = (List<Object>) profile.get("secondarySport");
+                secondarySports = new ArrayList<>();
+                for (Object ss : secSports) {
+                    if (ss instanceof String) {
+                        secondarySports.add((String) ss);
+                    }
+                }
+            }
+
+            // Extract deep link - might be constructed from Hpid
+            String deepLink = extractString(profile, "deep_link", "profile_url", "url", "profileLink");
+            if (deepLink == null && hpid != null) {
+                deepLink = "https://link.stapubox.com/?ref=profile/" + hpid;
+            }
+
+            return Player.builder()
+                    .id(id)
+                    .name(name)
+                    .sport(sport)
+                    .level(level)
+                    .city(city)
+                    .latitude(lat)
+                    .longitude(lng)
+                    .avatar(avatar)
+                    .role(role)
+                    .primarySports(primarySports)
+                    .secondarySports(secondarySports)
+                    .distanceKm(Math.round(distance * 10.0) / 10.0)
+                    .deepLink(deepLink)
+                    .build();
+
+        } catch (Exception e) {
+            log.debug("Error converting profile: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    // Helper methods to safely extract values from map
+    private String extractString(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value != null) {
+                return value.toString();
             }
         }
-        
-        // Sort by distance
-        nearbyPlayers.sort(Comparator.comparing(Player::getDistanceKm));
-        
-        // Apply limit
-        if (limit != null && nearbyPlayers.size() > limit) {
-            nearbyPlayers = nearbyPlayers.subList(0, limit);
-        }
+        return null;
+    }
 
+    private Double extractDouble(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value != null) {
+                if (value instanceof Number) {
+                    return ((Number) value).doubleValue();
+                } else if (value instanceof String) {
+                    try {
+                        return Double.parseDouble((String) value);
+                    } catch (NumberFormatException e) {
+                        // Continue to next key
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private Long extractLong(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value != null) {
+                if (value instanceof Number) {
+                    return ((Number) value).longValue();
+                } else if (value instanceof String) {
+                    try {
+                        return Long.parseLong((String) value);
+                    } catch (NumberFormatException e) {
+                        // Continue to next key
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private Integer extractInteger(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value != null) {
+                if (value instanceof Number) {
+                    return ((Number) value).intValue();
+                } else if (value instanceof String) {
+                    try {
+                        return Integer.parseInt((String) value);
+                    } catch (NumberFormatException e) {
+                        // Continue to next key
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private NearbyPlayersResponse createEmptyResponse(Double lat, Double lng, Double radius, String sport) {
         Map<String, Double> center = new HashMap<>();
         center.put("lat", lat);
         center.put("lng", lng);
@@ -162,8 +431,8 @@ public class StapuboxService {
                 .center(center)
                 .radiusKm(radius)
                 .sportFilter(sport)
-                .users(nearbyPlayers)
-                .count(nearbyPlayers.size())
+                .users(List.of())
+                .count(0)
                 .build();
     }
     
@@ -180,42 +449,34 @@ public class StapuboxService {
     }
 
     /**
-     * Get list of available sports from Stapubox API
-     * PLACEHOLDER: Replace with actual API call
+     * Get list of available sports
+     * Note: Static list as Stapubox API does not provide a sports list endpoint
      */
     public List<String> getSports() {
-        // TODO: Replace with actual Stapubox API call
         return Arrays.asList(
             "Cricket", "Football", "Badminton", "Tennis", "Basketball",
-            "Hockey", "Volleyball", "Table Tennis", "Swimming", "Athletics"
+            "Hockey", "Volleyball", "Table Tennis", "Swimming", "Athletics",
+            "Gym", "Padel", "Chess", "Yoga", "Running"
         );
     }
 
     /**
-     * Get player by ID from Stapubox API
-     * PLACEHOLDER: Replace with actual API call
+     * Get player by ID
+     * Note: Stapubox API does not support fetching individual profiles by ID.
+     * This endpoint is not functional - players should be accessed via deep links.
      */
     public Player getPlayerById(Long id) {
-        // TODO: Replace with actual Stapubox API call
-        return Player.builder()
-                .id(id)
-                .name("Player " + id)
-                .sport("Cricket")
-                .level("Intermediate")
-                .city("Mumbai")
-                .latitude(19.076 + (id % 10) * 0.01)
-                .longitude(72.877 + (id % 8) * 0.01)
-                .avatar("https://ui-avatars.com/api/?name=Player+" + id + "&background=random")
-                .distanceKm(id * 0.5)
-                .build();
+        // Stapubox API does not support individual profile lookup
+        // Return null to indicate profile not found
+        return null;
     }
 
     /**
      * Get all players within a viewport for clustering.
-     * Now uses REAL data from people_india_sports.json
+     * Now uses REAL API endpoint
      * 
-     * NOTE: Distance filtering is now handled client-side for visual indicator mode.
-     * All players in viewport are returned; client applies opacity based on distance.
+     * NOTE: Since Stapubox API uses radius-based search, we calculate center and radius
+     * to cover the viewport, then filter results by viewport bounds.
      */
     public List<Player> getAllPlayersForViewport(
             Double minLat, Double maxLat,
@@ -223,144 +484,47 @@ public class StapuboxService {
             String sport, String role,
             Double userLat, Double userLng, Double maxDistance) {
         
-        List<Player> result = new ArrayList<>();
-        for (Player p : allPlayers) {
-            // Filter by viewport bounds
-            if (p.getLatitude() >= minLat && p.getLatitude() <= maxLat &&
-                p.getLongitude() >= minLng && p.getLongitude() <= maxLng) {
-                
-                // Distance filtering removed - now handled client-side for visual indicator mode
-                // All players in viewport are returned; client will style based on distance
-                
-                // Filter by sport if specified
-                if (sport != null && !sport.isEmpty() && !sport.equalsIgnoreCase("All")) {
-                    // Check primary sports
-                    boolean matchesSport = p.getSport().equalsIgnoreCase(sport);
-                    if (!matchesSport && p.getPrimarySports() != null) {
-                        for (Player.PrimarySport ps : p.getPrimarySports()) {
-                            if (ps.getSport().equalsIgnoreCase(sport)) {
-                                matchesSport = true;
-                                break;
-                            }
-                        }
+        try {
+            // Calculate viewport center
+            Double centerLat = (minLat + maxLat) / 2.0;
+            Double centerLng = (minLng + maxLng) / 2.0;
+            
+            // Calculate radius to cover entire viewport (in km)
+            // Use Haversine to calculate distance from center to corner
+            double cornerLat = maxLat;
+            double cornerLng = maxLng;
+            double radiusKm = calculateDistance(centerLat, centerLng, cornerLat, cornerLng);
+            // Add 20% buffer to ensure we cover the entire viewport
+            radiusKm = radiusKm * 1.2;
+            // Cap at reasonable maximum (100km)
+            radiusKm = Math.min(radiusKm, 100.0);
+            
+            // Use user location if provided, otherwise use viewport center
+            Double searchLat = userLat != null ? userLat : centerLat;
+            Double searchLng = userLng != null ? userLng : centerLng;
+            
+            // Call real API with calculated radius
+            NearbyPlayersResponse apiResponse = getNearbyPlayers(
+                searchLat, searchLng, radiusKm, sport, role, 500 // Increased limit for viewport
+            );
+            
+            // Filter results by viewport bounds
+            List<Player> result = new ArrayList<>();
+            if (apiResponse != null && apiResponse.getUsers() != null) {
+                for (Player p : apiResponse.getUsers()) {
+                    // Filter by viewport bounds
+                    if (p.getLatitude() >= minLat && p.getLatitude() <= maxLat &&
+                        p.getLongitude() >= minLng && p.getLongitude() <= maxLng) {
+                        result.add(p);
                     }
-                    if (!matchesSport) continue;
                 }
-                
-                // Filter by role if specified
-                if (role != null && !role.isEmpty()) {
-                    if (p.getRole() == null || !p.getRole().equalsIgnoreCase(role)) {
-                        continue;
-                    }
-                }
-                
-                result.add(p);
-            }
-        }
-        return result;
-    }
-
-    // Helper: Generate STABLE mock players around CITIES only (no ocean!)
-    private List<Player> generateMockPlayersInBounds(
-            Double minLat, Double maxLat,
-            Double minLng, Double maxLng,
-            String sport, int count) {
-        
-        List<Player> players = new ArrayList<>();
-        String[] sports = {"Cricket", "Football", "Badminton", "Tennis", "Basketball", 
-                          "Hockey", "Volleyball", "Swimming", "Athletics", "Table Tennis"};
-        String[] levels = {"Beginner", "Intermediate", "Advanced", "Professional"};
-        
-        // City centers (only generate players near these)
-        double[][] cityData = {
-            {19.076, 72.877},  // Mumbai
-            {19.218, 72.978},  // Thane  
-            {19.033, 73.029},  // Navi Mumbai
-            {18.520, 73.856},  // Pune
-            {19.180, 72.850},  // Andheri
-            {19.120, 72.905},  // Kurla
-            {19.230, 73.130},  // Kalyan
-            {18.980, 72.840},  // Colaba
-        };
-        String[] cityNames = {"Mumbai", "Thane", "Navi Mumbai", "Pune", "Andheri", "Kurla", "Kalyan", "Colaba"};
-        
-        // For each city in viewport, generate players around it
-        for (int c = 0; c < cityData.length; c++) {
-            double cityLat = cityData[c][0];
-            double cityLng = cityData[c][1];
-            
-            // Skip if city not in viewport
-            if (cityLat < minLat - 0.1 || cityLat > maxLat + 0.1 ||
-                cityLng < minLng - 0.1 || cityLng > maxLng + 0.1) {
-                continue;
             }
             
-            // Generate ~50 players per visible city
-            Random cityRandom = new Random((long)(cityLat * 1000 + cityLng * 100));
-            for (int i = 0; i < 50; i++) {
-                long id = Math.abs((long)(cityLat * 10000 + cityLng * 1000 + i));
-                String playerSport = sports[cityRandom.nextInt(sports.length)];
-                
-                if (sport != null && !sport.isEmpty() && !sport.equalsIgnoreCase("All") 
-                    && !playerSport.equalsIgnoreCase(sport)) {
-                    continue;
-                }
-                
-                // Spread around city center (radius ~5km)
-                double lat = cityLat + (cityRandom.nextGaussian() * 0.03);
-                double lng = cityLng + (cityRandom.nextGaussian() * 0.03);
-                
-                // Skip if outside viewport
-                if (lat < minLat || lat > maxLat || lng < minLng || lng > maxLng) continue;
-                
-                players.add(Player.builder()
-                    .id(id)
-                    .name("Player " + (id % 1000))
-                    .sport(playerSport)
-                    .level(levels[cityRandom.nextInt(levels.length)])
-                    .city(cityNames[c])
-                    .latitude(lat)
-                    .longitude(lng)
-                    .avatar("https://ui-avatars.com/api/?name=P" + (id % 100) + "&background=random")
-                    .distanceKm(Math.round(cityRandom.nextDouble() * 10 * 10.0) / 10.0)
-                    .build());
-            }
-        }
-        
-        return players;
-    }
-
-    // Helper method to generate mock players for demo
-    private List<Player> generateMockPlayers(Double lat, Double lng, Double radius, String sport, Integer limit) {
-        List<Player> players = new ArrayList<>();
-        String[] sports = {"Cricket", "Football", "Badminton", "Tennis", "Basketball"};
-        String[] levels = {"Beginner", "Intermediate", "Advanced", "Professional"};
-        String[] cities = {"Mumbai", "Delhi", "Bangalore", "Chennai", "Pune"};
-
-        int count = limit != null ? Math.min(limit, 50) : 50;
-
-        for (int i = 1; i <= count; i++) {
-            String playerSport = sports[i % sports.length];
+            return result;
             
-            // Skip if sport filter is applied and doesn't match
-            if (sport != null && !sport.isEmpty() && !sport.equalsIgnoreCase("All") 
-                && !playerSport.equalsIgnoreCase(sport)) {
-                continue;
-            }
-
-            players.add(Player.builder()
-                    .id((long) i)
-                    .name("Player " + i)
-                    .sport(playerSport)
-                    .level(levels[i % levels.length])
-                    .city(cities[i % cities.length])
-                    .latitude(lat + (i % 10) * 0.01 - 0.05)
-                    .longitude(lng + (i % 8) * 0.01 - 0.04)
-                    .avatar("https://ui-avatars.com/api/?name=Player+" + i + "&background=random")
-                    .distanceKm(Math.round(i * 0.5 * 10.0) / 10.0)
-                    .build());
+        } catch (Exception e) {
+            log.error("Error fetching viewport data: {}", e.getMessage());
+            return new ArrayList<>();
         }
-
-        return players;
     }
 }
