@@ -12,8 +12,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
@@ -21,8 +19,6 @@ public class StapuboxService {
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
-    
-    private final ConcurrentHashMap<String, CompletableFuture<NearbyPlayersResponse>> inFlightRequests = new ConcurrentHashMap<>();
 
     @Value("${stapubox.api.base-url}")
     private String stapuboxBaseUrl;
@@ -34,21 +30,15 @@ public class StapuboxService {
         this.webClient = webClientBuilder.build();
         this.objectMapper = objectMapper;
     }
-    
-    private String buildCacheKey(Double lat, Double lng, Double radius, String sport) {
-        int latBucket = (int) (lat * 10);
-        int lngBucket = (int) (lng * 10);
-        int radiusBucket = (int) (radius / 5) * 5;
-        return String.format("%d_%d_%d_%s", latBucket, lngBucket, radiusBucket, sport != null ? sport : "all");
-    }
 
     /**
      * Fetch nearby players from Stapubox API with caching and circuit breaker
      */
-    @Cacheable(value = "nearbyPlayers", key = "#lat + '_' + #lng + '_' + #radius + '_' + #sport")
+    @Cacheable(value = "nearbyPlayers", key = "T(String).format('%s_%s_%s_%s_%s', #lat, #lng, #radius, #sport ?: 'all', #limit ?: 100)")
     @CircuitBreaker(name = "stapubox", fallbackMethod = "fallbackNearbyPlayers")
     @Retry(name = "stapubox")
     public NearbyPlayersResponse getNearbyPlayers(Double lat, Double lng, Double radius, String sport, String role, Integer limit) {
+        log.info("getNearbyPlayers called: lat={}, lng={}, radius={}, sport={}, limit={}", lat, lng, radius, sport, limit);
         try {
             // Build request
             StapuboxMapViewRequest.LocationData location = StapuboxMapViewRequest.LocationData.builder()
@@ -192,6 +182,12 @@ public class StapuboxService {
 
             // Sort by distance
             nearbyPlayers.sort(Comparator.comparing(Player::getDistanceKm));
+            
+            // Apply limit after sorting (ensures we get the closest players)
+            if (limit != null && limit > 0 && nearbyPlayers.size() > limit) {
+                nearbyPlayers = nearbyPlayers.subList(0, limit);
+                log.debug("Applied limit={}, returning {} players", limit, nearbyPlayers.size());
+            }
 
             Map<String, Double> center = new HashMap<>();
             center.put("lat", lat);
@@ -377,42 +373,6 @@ public class StapuboxService {
                 } else if (value instanceof String) {
                     try {
                         return Double.parseDouble((String) value);
-                    } catch (NumberFormatException e) {
-                        // Continue to next key
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private Long extractLong(Map<String, Object> map, String... keys) {
-        for (String key : keys) {
-            Object value = map.get(key);
-            if (value != null) {
-                if (value instanceof Number) {
-                    return ((Number) value).longValue();
-                } else if (value instanceof String) {
-                    try {
-                        return Long.parseLong((String) value);
-                    } catch (NumberFormatException e) {
-                        // Continue to next key
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private Integer extractInteger(Map<String, Object> map, String... keys) {
-        for (String key : keys) {
-            Object value = map.get(key);
-            if (value != null) {
-                if (value instanceof Number) {
-                    return ((Number) value).intValue();
-                } else if (value instanceof String) {
-                    try {
-                        return Integer.parseInt((String) value);
                     } catch (NumberFormatException e) {
                         // Continue to next key
                     }
