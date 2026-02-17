@@ -22,7 +22,7 @@ function App() {
   const [connectedPlayerIds, setConnectedPlayerIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [playersWithinDistance, setPlayersWithinDistance] = useState(0);
-  
+
   // Initial Filters
   const [filters, setFilters] = useState<FilterState>({
     sport: 'All',
@@ -59,7 +59,7 @@ function App() {
         const response = await fetch(`http://localhost:8080/api/users/nearby?${params.toString()}`);
         const data = await response.json();
         // API loaded
-        
+
         if (data.users && data.users.length > 0) {
           setAllPlayers(data.users);
           setFilteredPlayers(data.users);
@@ -85,8 +85,8 @@ function App() {
     // 1. Search Query
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(p => 
-        p.name.toLowerCase().includes(q) || 
+      result = result.filter(p =>
+        p.name.toLowerCase().includes(q) ||
         p.sport.toLowerCase().includes(q) ||
         p.city.toLowerCase().includes(q)
       );
@@ -99,7 +99,7 @@ function App() {
     });
     // 3. Distance Filter is handled by API, but we can double check or just trust API
     // The API returns users within maxDistance, so no need to re-filter strictly if API works.
-    
+
     setFilteredPlayers(result);
   }, [allPlayers, searchQuery, filters.levels]);
 
@@ -115,11 +115,11 @@ function App() {
     <div className="relative h-screen w-full bg-gray-100 dark:bg-zinc-950 overflow-hidden font-sans text-gray-900 dark:text-gray-100">
       {/* Floating Header */}
       <Header />
-      
+
       {/* Main Map Area - Scalable or Legacy */}
       <div className="absolute inset-0 z-0">
         {USE_SCALABLE_MAP ? (
-          <ScalableMap 
+          <ScalableMap
             onPlayerSelect={setSelectedPlayer}
             onMapClick={() => setSelectedPlayer(null)}
             onTotalChange={(total) => setPlayersWithinDistance(total)}
@@ -129,7 +129,7 @@ function App() {
             userType={filters.userType}
           />
         ) : (
-          <Map 
+          <Map
             players={filteredPlayers}
             onPlayerSelect={setSelectedPlayer}
             viewMode={viewMode}
@@ -162,16 +162,17 @@ function App() {
           Coaches
         </button>
       </div> */}
-        
-      <FilterPanel 
+
+      <FilterPanel
         filters={filters}
         onFilterChange={setFilters}
         playerCount={USE_SCALABLE_MAP ? playersWithinDistance : filteredPlayers.length}
         isLoading={isLoading}
+        onExpand={() => setSelectedPlayer(null)}
       />
 
       {/* Players only - Coaches commented out */}
-      <PlayerCard 
+      <PlayerCard
         player={selectedPlayer}
         onClose={() => setSelectedPlayer(null)}
         isConnected={selectedPlayer ? connectedPlayerIds.has(selectedPlayer.id) : false}
