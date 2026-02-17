@@ -59,6 +59,11 @@ public class StapuboxService {
             // Convert radius from km to meters
             Integer searchRadiusMeters = (int) (radius * 1000);
 
+            // Stapubox API returns EMPTY when page_size > available users in a region
+            // (e.g. Bangalore has ~24 users, so page_size=50 returns 0 instead of 24)
+            // Use 20 as safe default - works across all regions
+            int safePageSize = limit != null ? Math.min(limit, 20) : 20;
+
             StapuboxMapViewRequest request = StapuboxMapViewRequest.builder()
                     .playground(true)
                     .work(false)
@@ -70,7 +75,7 @@ public class StapuboxService {
                     .searchRadiusMin(0)
                     .searchRadiusMax(100000)
                     .page(1)
-                    .pageSize(limit != null ? limit : 100)
+                    .pageSize(safePageSize)
                     .format("json")
                     .location(location)
                     .build();
@@ -459,13 +464,15 @@ public class StapuboxService {
             // Cap at reasonable maximum (100km)
             radiusKm = Math.min(radiusKm, 100.0);
             
-            // Use user location if provided, otherwise use viewport center
-            Double searchLat = userLat != null ? userLat : centerLat;
-            Double searchLng = userLng != null ? userLng : centerLng;
+            // Always search from viewport center to find players in the visible area
+            // (Using userLat/userLng here caused 0 results when panning to other cities)
+            Double searchLat = centerLat;
+            Double searchLng = centerLng;
             
             // Call real API with calculated radius
+            // Stapubox API peaks at pageSize=24, degrades above that
             NearbyPlayersResponse apiResponse = getNearbyPlayers(
-                searchLat, searchLng, radiusKm, sport, role, 500 // Increased limit for viewport
+                searchLat, searchLng, radiusKm, sport, role, 24
             );
             
             // Filter results by viewport bounds
@@ -477,6 +484,14 @@ public class StapuboxService {
                         p.getLongitude() >= minLng && p.getLongitude() <= maxLng) {
                         result.add(p);
                     }
+                }
+            }
+            
+            // Recalculate distances from user's actual GPS location (if available)
+            if (userLat != null && userLng != null) {
+                for (Player p : result) {
+                    double dist = calculateDistance(userLat, userLng, p.getLatitude(), p.getLongitude());
+                    p.setDistanceKm(Math.round(dist * 10.0) / 10.0);
                 }
             }
             
