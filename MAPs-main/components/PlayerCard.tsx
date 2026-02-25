@@ -68,7 +68,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose, isConne
           className="flex flex-col justify-center items-center relative"
           style={{
             width: '378.08px',
-            height: '171.2px',
+            minHeight: '171.2px',
             padding: '11.5443px 23.0886px',
             gap: '14.43px',
             background: 'linear-gradient(99.64deg, #FFFFFF -3.69%, #FFFFFF 121.62%)',
@@ -84,7 +84,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, onClose, isConne
               <img
                 src={displayPlayer.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayPlayer.name)}&background=random&size=80`}
                 alt="Player"
-                className="w-full h-full rounded-xl object-cover"
+                className="w-full h-full rounded-xl object-contain"
               />
             </div>
 

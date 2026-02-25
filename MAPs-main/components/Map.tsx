@@ -780,6 +780,8 @@ export const ScalableMap: React.FC<ScalableMapProps> = ({
             <Circle
               center={[userLocation.lat, userLocation.lng]}
               radius={maxDistance * 1000} // Convert km to meters
+              interactive={false}
+              bubblingMouseEvents={true}
               pathOptions={{
                 color: '#E17827', // Brand orange color
                 fillColor: '#E17827',
@@ -788,11 +790,7 @@ export const ScalableMap: React.FC<ScalableMapProps> = ({
                 dashArray: '10, 5', // Dashed border for better visibility
                 opacity: 0.6 // Border opacity
               }}
-            >
-              <Popup>
-                Search radius: {maxDistance} km
-              </Popup>
-            </Circle>
+            />
           </>
         )}
 
@@ -812,19 +810,19 @@ export const ScalableMap: React.FC<ScalableMapProps> = ({
         />
       </MapContainer>
 
-      {/* StapuSearch Logo - Bottom Left Corner */}
+      {/* StapuSearch Logo - Top Right Corner */}
       <div
-        className="absolute bottom-4 z-[1000]"
+        className="absolute z-[800]"
         style={{
-          left: '37px',
+          top: '8px',
+          right: '8px',
           lineHeight: 0,
-          display: 'inline-block'
         }}
       >
         <svg
-          width="216"
-          height="57"
-          viewBox="38 19 148 24"
+          width="150"
+          height="40"
+          viewBox="38 17 148 28"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           style={{ display: 'block', border: 'none', outline: 'none' }}

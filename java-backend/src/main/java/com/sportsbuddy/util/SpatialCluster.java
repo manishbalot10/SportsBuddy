@@ -83,7 +83,10 @@ public class SpatialCluster {
             // Count sports in this cluster
             Map<String, Integer> sportCounts = new HashMap<>();
             for (Player p : group) {
-                sportCounts.merge(p.getSport(), 1, Integer::sum);
+                String sport = p.getSport();
+                if (sport != null) {
+                    sportCounts.merge(sport, 1, Integer::sum);
+                }
             }
             
             if (group.size() <= maxMarkersBeforeCluster) {
@@ -95,7 +98,7 @@ public class SpatialCluster {
                         p.getLongitude(), 
                         1, 
                         Collections.singletonList(p),
-                        Collections.singletonMap(p.getSport(), 1)
+                        Collections.singletonMap(p.getSport() != null ? p.getSport() : "Unknown", 1)
                     ));
                 }
             } else {
