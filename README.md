@@ -56,6 +56,268 @@
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+### System Architecture (Mermaid)
+
+```mermaid
+flowchart TB
+    subgraph Frontend["🖥️ Frontend — React + Vite :3000"]
+        direction TB
+        App["App.tsx\n(State Manager)"]
+        Map["Map.tsx\n(Leaflet Map)"]
+        FP["FilterPanel.tsx\n(Sport / Distance / Role)"]
+        PC["PlayerCard.tsx\n(Player Detail)"]
+        DP["DownloadPrompt.tsx\n(App Install)"]
+
+        App -->|filters| Map
+        App -->|selectedPlayer| PC
+        App -->|filters| FP
+        Map -->|onPlayerSelect| App
+        FP -->|onFilterChange| App
+        FP -->|onExpand| App
+        PC -->|Connect click| DP
+    end
+
+    subgraph MapInternals["🗺️ Map.tsx Internals"]
+        direction LR
+        VDF["ViewportDataFetcher\n(debounced)"]
+        SM["ScalableMarkers"]
+        MCG["MarkerClusterGroup\n(client-side)"]
+        MCH["MapClickHandler"]
+        ILD["InitialLocationDetector\n(GPS)"]
+
+        VDF -->|viewport data| SM
+        SM --> MCG
+        MCH -->|dismiss card| App
+    end
+
+    subgraph Backend["⚙️ Backend — Spring Boot :8080"]
+        direction TB
+        PC2["PlayerController\n(REST API)"]
+        SS["StapuboxService\n(API Integration)"]
+        SC["SpatialCluster\n(Geohash Clustering)"]
+        GH["GeoHash\n(Encoding/Decoding)"]
+        Cache[("Caffeine Cache\n5-min TTL")]
+        CB["Resilience4j\n(Circuit Breaker + Retry)"]
+
+        PC2 --> SS
+        PC2 --> SC
+        SC --> GH
+        SS --> Cache
+        SS --> CB
+    end
+
+    subgraph External["🌐 External API"]
+        Stapubox["Stapubox API\npractise.stapubox.com\nPOST /sportfolio/getMapView"]
+    end
+
+    Map -.->|"GET /api/users/viewport"| PC2
+    CB -->|"HTTPS POST"| Stapubox
+    Stapubox -->|"Player Profiles JSON"| SS
+
+    style Frontend fill:#1a1a2e,stroke:#e94560,color:#fff
+    style Backend fill:#16213e,stroke:#0f3460,color:#fff
+    style External fill:#533483,stroke:#e94560,color:#fff
+    style MapInternals fill:#0f3460,stroke:#e94560,color:#fff
+```
+
+### API Request Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as 👤 User
+    participant Browser as 🖥️ React Frontend
+    participant Map as 🗺️ Map.tsx
+    participant Backend as ⚙️ Spring Boot
+    participant Cache as 💾 Caffeine Cache
+    participant CB as 🛡️ Circuit Breaker
+    participant Stapubox as 🌐 Stapubox API
+
+    User->>Browser: Opens app
+    Browser->>Map: Mount ScalableMap
+    Map->>Map: Request GPS geolocation
+    alt GPS granted
+        Map->>Map: Center on user location
+    else GPS denied
+        Map->>Map: Default to India Gate, Delhi
+    end
+
+    Note over Map: ViewportDataFetcher triggers
+
+    Map->>Backend: GET /api/users/viewport<br/>?minLat=..&maxLat=..&zoom=..
+    Backend->>Cache: Check cache for viewport key
+    alt Cache HIT
+        Cache-->>Backend: Return cached players
+    else Cache MISS
+        Backend->>CB: Call Stapubox via circuit breaker
+        CB->>Stapubox: POST /sportfolio/getMapView<br/>{lat, lng, radius, pageSize: 20}
+        Stapubox-->>CB: Player profiles JSON
+        CB-->>Backend: Raw profiles
+        Backend->>Backend: convertProfileToPlayer()
+        Backend->>Backend: filterByViewport()
+        Backend->>Cache: Store in cache (5min TTL)
+    end
+    Backend->>Backend: SpatialCluster.clusterPlayers()
+    Backend-->>Map: ClusterResponse JSON
+    Map->>Map: Render markers + clusters
+
+    User->>Map: Click player marker
+    Map->>Browser: onPlayerSelect(player)
+    Browser->>Browser: Show PlayerCard
+
+    User->>Browser: Click "Connect"
+    Browser->>User: Open deep link / Download prompt
+
+    Note over User,Stapubox: Filter Change Flow
+    User->>Browser: Change sport filter
+    Browser->>Map: New filters prop
+    Map->>Backend: GET /api/users/viewport<br/>?sport=Cricket&...
+    Backend-->>Map: Filtered results
+    Map->>Map: Re-render markers
+```
+
+### Data Flow Sankey Diagram
+
+```mermaid
+sankey-beta
+
+Stapubox API,Raw Profiles,100
+Raw Profiles,Profile Converter,100
+Profile Converter,Valid Players,85
+Profile Converter,Null Sport Filtered,15
+Valid Players,Viewport Filter,85
+Viewport Filter,In Viewport,30
+Viewport Filter,Outside Viewport,55
+In Viewport,Geohash Clustering,30
+Geohash Clustering,Individual Markers,20
+Geohash Clustering,Server Clusters,10
+Individual Markers,Client MarkerCluster,20
+Client MarkerCluster,Visible Markers,15
+Client MarkerCluster,Client Clusters,5
+Server Clusters,Visible Clusters,10
+```
+
+### Backend Class Diagram
+
+```mermaid
+classDiagram
+    class PlayerController {
+        -StapuboxService stapuboxService
+        +getPlayersInViewport() ClusterResponse
+        +getNearbyPlayers() NearbyPlayersResponse
+        +getSports() Map
+        +health() Map
+    }
+
+    class StapuboxService {
+        -WebClient webClient
+        -String stapuboxBaseUrl
+        +getNearbyPlayers() NearbyPlayersResponse
+        +getAllPlayersForViewport() List~Player~
+        -convertProfileToPlayer() Player
+        -calculateDistance() double
+    }
+
+    class SpatialCluster {
+        +clusterPlayers() List~Cluster~
+        +filterByViewport() List~Player~
+        +buildClusterIndex() Map
+    }
+
+    class GeoHash {
+        +encode() String
+        +decodeCenter() double[]
+        +getPrecisionForZoom() int
+        +getCoveringGeohashes() Set~String~
+    }
+
+    class Player {
+        -Long id
+        -String name
+        -String sport
+        -String level
+        -String city
+        -Double latitude
+        -Double longitude
+        -String avatar
+        -String deepLink
+        -List~PrimarySport~ primarySports
+        -List~String~ secondarySports
+    }
+
+    class PrimarySport {
+        -String sport
+        -Integer level
+    }
+
+    class ClusterResponse {
+        -ViewportBounds viewport
+        -int zoom
+        -int totalInViewport
+        -List~ClusterItem~ clusters
+        +fromClusters() ClusterResponse
+    }
+
+    class Cluster {
+        -String geohash
+        -double centerLat
+        -double centerLng
+        -int count
+        -List~Player~ players
+        -Map sportCounts
+        +isCluster() boolean
+    }
+
+    PlayerController --> StapuboxService
+    PlayerController --> SpatialCluster
+    SpatialCluster --> GeoHash
+    SpatialCluster --> Cluster
+    StapuboxService --> Player
+    Player --> PrimarySport
+    ClusterResponse --> Cluster
+    Cluster --> Player
+```
+
+### Frontend Component Tree
+
+```mermaid
+flowchart TD
+    A["index.tsx"] --> B["App.tsx"]
+    B --> C["Header.tsx"]
+    B --> D["FilterPanel.tsx"]
+    B --> E["ScalableMap (Map.tsx)"]
+    B --> F["PlayerCard.tsx"]
+
+    E --> G["MapContainer (Leaflet)"]
+    G --> H["TileLayer (CartoDB)"]
+    G --> I["User Marker + GPS Circle"]
+    G --> J["ViewportDataFetcher"]
+    G --> K["ScalableMarkers"]
+    G --> L["MapClickHandler"]
+    G --> M["ZoomControl"]
+    G --> N["MyLocationControl"]
+    G --> O["InitialLocationDetector"]
+
+    K --> P["Server Cluster Markers"]
+    K --> Q["MarkerClusterGroup"]
+    Q --> R["Individual Player Markers"]
+
+    F --> S["Mascot Avatar"]
+    F --> T["Sport Ratings (1-5 dots)"]
+    F --> U["Connect Button"]
+    U --> V["DownloadPrompt.tsx"]
+
+    D --> W["Sport Filter Grid"]
+    D --> X["Distance Slider"]
+    D --> Y["Player/Coach Toggle"]
+
+    style A fill:#e94560,color:#fff
+    style B fill:#0f3460,color:#fff
+    style E fill:#16213e,color:#fff
+    style F fill:#533483,color:#fff
+    style D fill:#533483,color:#fff
+```
+
 ---
 
 ## Repository Structure
